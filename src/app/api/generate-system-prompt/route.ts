@@ -8,6 +8,15 @@ const groq = new Groq({
 
 export async function POST(req: NextRequest) {
     try {
+        // 0. Check for API Key
+        if (!process.env.GROQ_API_KEY) {
+            console.error("GROQ_API_KEY is not defined in environment variables");
+            return NextResponse.json(
+                { error: "AI configuration missing (GROQ_API_KEY)" },
+                { status: 500 }
+            );
+        }
+
         const body = await req.json();
         const { intent, phone_number } = body;
 
@@ -21,11 +30,13 @@ export async function POST(req: NextRequest) {
         console.log("Generating system prompt for intent:", intent);
 
         // Use Groq to generate a system prompt based on the intent
-        const completion = await groq.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: `You are an AI assistant that generates professional system prompts for chatbots.
+        let completion;
+        try {
+            completion = await groq.chat.completions.create({
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are an AI assistant that generates professional system prompts for chatbots.
 Given a business intent/purpose, create a clear, concise, and effective system prompt that will guide the chatbot's behavior.
 
 The system prompt should:
@@ -36,21 +47,25 @@ The system prompt should:
 5. Be professional yet friendly
 
 Keep the system prompt under 250 words.`
-                },
-                {
-                    role: "user",
-                    content: `Create a system prompt for a WhatsApp chatbot with the following intent/purpose:\n\n"${intent}"\n\nGenerate only the system prompt text, without any additional explanation or formatting.`
-                }
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.7,
-            max_tokens: 500,
-        });
+                    },
+                    {
+                        role: "user",
+                        content: `Create a system prompt for a WhatsApp chatbot with the following intent/purpose:\n\n"${intent}"\n\nGenerate only the system prompt text, without any additional explanation or formatting.`
+                    }
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.7,
+                max_tokens: 500,
+            });
+        } catch (groqError: any) {
+            console.error("Groq API Error:", groqError);
+            throw new Error(`AI Generation failed: ${groqError.message || "Unknown Groq error"}`);
+        }
 
         const systemPrompt = completion.choices[0]?.message?.content || "";
 
         if (!systemPrompt) {
-            throw new Error("Failed to generate system prompt");
+            throw new Error("AI returned an empty system prompt");
         }
 
         console.log("Generated system prompt:", systemPrompt);
@@ -99,12 +114,12 @@ Keep the system prompt under 250 words.`
             intent: intent,
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("System prompt generation error:", error);
 
         return NextResponse.json(
             {
-                error: error instanceof Error ? error.message : "Failed to generate system prompt",
+                error: error.message || "Failed to generate system prompt",
             },
             { status: 500 }
         );
