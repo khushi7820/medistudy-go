@@ -2,7 +2,8 @@ import { supabase } from "./supabaseClient";
 import { embedText } from "./embeddings";
 import { retrieveRelevantChunksFromFiles } from "./retrieval";
 import { getFilesForPhoneNumber } from "./phoneMapping";
-import { sendWhatsAppMessage } from "./whatsappSender";
+import { sendWhatsAppMessage, formatMaterialLinkMessage } from "./whatsappSender";
+import { detectMaterialIntent } from "./materialMatcher";
 import Groq from "groq-sdk";
 
 const groq = new Groq({
@@ -69,6 +70,57 @@ export async function generateAutoResponse(
                 success: false,
                 error: "No WhatsApp API credentials found. Please set credentials in the Configuration tab.",
             };
+        }
+
+        // 1.8. Check for Material Intent (Google Drive Link Requests)
+        const materialCheck = detectMaterialIntent(messageText);
+        if (materialCheck.isMaterialIntent) {
+            console.log(`Material intent detected for: ${messageText}`);
+            
+            let responseText: string;
+            if (materialCheck.exactMatch) {
+                console.log(`Exact material match found: ${materialCheck.material.name}`);
+                responseText = formatMaterialLinkMessage(
+                    materialCheck.material.name, 
+                    materialCheck.material.link
+                );
+            } else {
+                console.log("Material intent detected but no exact match found.");
+                responseText = "📚 *Study Materials*\n\nI couldn't find the exact subject you're looking for. Please try again with the full subject name (e.g., 'Microbiology PDF').\n\nCurrently available: Microbiology, Physiology, Anatomy, Biochemistry.";
+            }
+
+            // Send the material link response
+            const sendResult = await sendWhatsAppMessage(fromNumber, responseText, auth_token, origin);
+            
+            if (sendResult.success) {
+                // Store in history
+                const responseMessageId = `material_${messageId}_${Date.now()}`;
+                await supabase.from("whatsapp_messages").insert([{
+                    message_id: responseMessageId,
+                    channel: "whatsapp",
+                    from_number: toNumber,
+                    to_number: fromNumber,
+                    received_at: new Date().toISOString(),
+                    content_type: "text",
+                    content_text: responseText,
+                    sender_name: "AI Assistant",
+                    event_type: "MtMessage",
+                    is_in_24_window: true,
+                    is_responded: false,
+                    raw_payload: { messageId: responseMessageId, isMaterialLink: true }
+                }]);
+
+                // Mark original as responded
+                await supabase.from("whatsapp_messages").update({
+                    auto_respond_sent: true,
+                    response_sent_at: new Date().toISOString(),
+                }).eq("message_id", messageId);
+
+                return { success: true, response: responseText, sent: true };
+            } else {
+                console.error("Failed to send material link WhatsApp message:", sendResult.error);
+                return { success: false, error: `Failed to send material link: ${sendResult.error}` };
+            }
         }
 
         // 2. Embed the user query

@@ -11,6 +11,13 @@ export type SendMessageResult = {
 };
 
 /**
+ * Format a WhatsApp message for a material link
+ */
+export function formatMaterialLinkMessage(subject: string, link: string): string {
+    return `📚 *Requested Study Material*\n\nSubject: ${subject}\n\nDownload Link:\n${link}\n\nNeed another subject? 😊`;
+}
+
+/**
  * Send a text message via WhatsApp using 11za.in API
  */
 export async function sendWhatsAppMessage(
