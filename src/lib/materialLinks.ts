@@ -24,5 +24,20 @@ export const MATERIAL_DATABASE: MaterialItem[] = [
         name: "BIOCHEMISTRY",
         keywords: ["biochem", "biochemistry", "mbbs biochem"],
         link: "https://drive.google.com/drive/folders/sample-biochemistry-link"
+    },
+    {
+        name: "PHARMACOLOGY",
+        keywords: ["pharmacology", "pharma", "pharmac", "pharmacology pdf"],
+        link: "https://drive.google.com/drive/folders/sample-pharmacology-link"
+    },
+    {
+        name: "PATHOLOGY",
+        keywords: ["pathology", "patho", "general pathology"],
+        link: "https://drive.google.com/drive/folders/sample-pathology-link"
+    },
+    {
+        name: "ORTHODONTICS",
+        keywords: ["orthodontics", "ortho"],
+        link: "https://drive.google.com/drive/folders/sample-ortho-link"
     }
 ];

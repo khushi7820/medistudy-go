@@ -72,59 +72,13 @@ export async function generateAutoResponse(
             };
         }
 
-        // 1.8. Check for Material Intent (Google Drive Link Requests)
-        const materialCheck = detectMaterialIntent(messageText);
-        if (materialCheck.isMaterialIntent) {
-            console.log(`Material intent detected for: ${messageText}`);
-            
-            let responseText: string;
-            if (materialCheck.exactMatch) {
-                console.log(`Exact material match found: ${materialCheck.material.name}`);
-                responseText = formatMaterialLinkMessage(
-                    materialCheck.material.name, 
-                    materialCheck.material.link
-                );
-            } else {
-                console.log("Material intent detected but no exact match found.");
-                responseText = "📚 *Study Materials*\n\nI couldn't find the exact subject you're looking for. Please try again with the full subject name (e.g., 'Microbiology PDF').\n\nCurrently available: Microbiology, Physiology, Anatomy, Biochemistry.";
-            }
+        // 1.8. Search Strategy (Optimized for current PDF)
+        const retrievalQuery = messageText;
 
-            // Send the material link response
-            const sendResult = await sendWhatsAppMessage(fromNumber, responseText, auth_token, origin);
-            
-            if (sendResult.success) {
-                // Store in history
-                const responseMessageId = `material_${messageId}_${Date.now()}`;
-                await supabase.from("whatsapp_messages").insert([{
-                    message_id: responseMessageId,
-                    channel: "whatsapp",
-                    from_number: toNumber,
-                    to_number: fromNumber,
-                    received_at: new Date().toISOString(),
-                    content_type: "text",
-                    content_text: responseText,
-                    sender_name: "AI Assistant",
-                    event_type: "MtMessage",
-                    is_in_24_window: true,
-                    is_responded: false,
-                    raw_payload: { messageId: responseMessageId, isMaterialLink: true }
-                }]);
+        console.log(`Retrieval Query: "${retrievalQuery}"`);
 
-                // Mark original as responded
-                await supabase.from("whatsapp_messages").update({
-                    auto_respond_sent: true,
-                    response_sent_at: new Date().toISOString(),
-                }).eq("message_id", messageId);
-
-                return { success: true, response: responseText, sent: true };
-            } else {
-                console.error("Failed to send material link WhatsApp message:", sendResult.error);
-                return { success: false, error: `Failed to send material link: ${sendResult.error}` };
-            }
-        }
-
-        // 2. Embed the user query
-        const queryEmbedding = await embedText(messageText);
+        // 2. Embed the query
+        const queryEmbedding = await embedText(retrievalQuery);
 
         if (!queryEmbedding) {
             return {
@@ -164,23 +118,31 @@ export async function generateAutoResponse(
 
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
-            `Your ONLY job is to answer questions based strictly on the provided document context.\n\n` +
-            `STRICT RULES:\n` +
-            `- ONLY answer questions using information from the CONTEXT below\n` +
-            `- If the answer is not in the CONTEXT, say "I don't have that information in the document"\n` +
-            `- NEVER use your general knowledge or make assumptions beyond the document\n` +
-            `- NEVER offer to do tasks you cannot do (generate files, make calls, etc.)\n` +
-            `- Be concise and friendly - keep responses under 300 words\n` +
-            `- Use clear, simple language appropriate for WhatsApp chat\n` +
-            `- Format responses with line breaks for readability`;
+            `==================================================\n` +
+            `STRICT KNOWLEDGE RULE\n` +
+            `==================================================\n` +
+            `You must answer ONLY from the provided CONTEXT. Do not guess or assume.\n` +
+            `If information is missing, say: "Is topic ka exact material database me available nahi mila."\n\n` +
+            `==================================================\n` +
+            `MATERIAL / PDF / LINK REQUEST RULE (VERY STRICT)\n` +
+            `==================================================\n` +
+            `If the user asks for PDF, notes, material, or drive link:\n` +
+            `1. Search CONTEXT for the requested subject or material.\n` +
+            `2. MUST provide the exact Google Drive Link present in CONTEXT.\n` +
+            `3. If no matching material or link found, reply: "Is particular subject ka exact PDF/material mere available database me nahi mila."\n` +
+            `4. Never provide wrong or nearest guess links.\n\n` +
+            `==================================================\n` +
+            `RESPONSE STYLE\n` +
+            `==================================================\n` +
+            `- Reply in the same language style (English/Hinglish/Hindi).\n` +
+            `- Use bold headings and bullet points.\n` +
+            `- Be professional and helpful as Medi Study Go Assistant.`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
-            // Combine intent-based prompt with document rules
             systemPrompt = `${customSystemPrompt}\n\n${documentRules}`;
         } else {
-            // Use default prompt with document rules
-            systemPrompt = `You are a helpful WhatsApp assistant.\n\n${documentRules}`;
+            systemPrompt = `You are the official professional WhatsApp assistant of Medi Study Go.\n\n${documentRules}`;
         }
 
         const messages = [
