@@ -28,20 +28,16 @@ export async function sendWhatsAppMessage(
             };
         }
 
-        // Normalize originWebsite (remove protocol and trailing slash)
-        let normalizedOrigin = originWebsite
-            .replace(/^https?:\/\//, "") // Remove http:// or https://
-            .replace(/\/$/, "");         // Remove trailing slash
-
         const payload = {
             sendto: phoneNumber,
             authToken: authToken,
-            originWebsite: normalizedOrigin,
+            originWebsite: originWebsite.trim(),
+            originWebsites: originWebsite.trim(), // Adding plural alias as requested by error message
             contentType: "text",
             text: message,
         };
 
-        console.log(`Sending WhatsApp message to ${phoneNumber} with origin: ${normalizedOrigin}`);
+        console.log(`Sending WhatsApp message to ${phoneNumber} with origin: ${originWebsite.trim()}`);
 
         console.log(`Sending WhatsApp message to ${phoneNumber}...`);
 
@@ -101,14 +97,11 @@ export async function sendWhatsAppTemplate(
         }
 
         // Normalize originWebsite (remove protocol and trailing slash)
-        let normalizedOrigin = originWebsite
-            .replace(/^https?:\/\//, "") // Remove http:// or https://
-            .replace(/\/$/, "");         // Remove trailing slash
-
         const payload = {
             sendto: phoneNumber,
             authToken: authToken,
-            originWebsite: normalizedOrigin,
+            originWebsite: originWebsite.trim(),
+            originWebsites: originWebsite.trim(),
             templateId: templateData.templateId,
             parameters: templateData.parameters || {},
         };
