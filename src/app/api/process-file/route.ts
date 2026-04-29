@@ -290,7 +290,13 @@ export async function POST(req: Request) {
             void supabase.from("rag_files").delete().eq("id", fileId);
         }
 
-        const message = err instanceof Error ? err.message : "Unknown error";
+        let message = "Unknown error";
+        if (err instanceof Error) {
+            message = err.message;
+        } else if (err && typeof err === "object" && "message" in err) {
+            message = String((err as any).message);
+        }
+
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
