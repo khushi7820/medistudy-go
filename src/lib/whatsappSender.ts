@@ -28,10 +28,15 @@ export async function sendWhatsAppMessage(
             };
         }
 
+        // Normalize originWebsite (remove trailing slash if present)
+        const normalizedOrigin = originWebsite.endsWith("/") 
+            ? originWebsite.slice(0, -1) 
+            : originWebsite;
+
         const payload = {
             sendto: phoneNumber,
             authToken: authToken,
-            originWebsite: originWebsite,
+            originWebsite: normalizedOrigin,
             contentType: "text",
             text: message,
         };
@@ -93,10 +98,15 @@ export async function sendWhatsAppTemplate(
             };
         }
 
+        // Normalize originWebsite (remove trailing slash if present)
+        const normalizedOrigin = originWebsite.endsWith("/") 
+            ? originWebsite.slice(0, -1) 
+            : originWebsite;
+
         const payload = {
             sendto: phoneNumber,
             authToken: authToken,
-            originWebsite: originWebsite,
+            originWebsite: normalizedOrigin,
             templateId: templateData.templateId,
             parameters: templateData.parameters || {},
         };
