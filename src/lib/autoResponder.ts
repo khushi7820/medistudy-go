@@ -34,15 +34,6 @@ export async function generateAutoResponse(
         // 1. Get all documents mapped to this 'to' number (business number)
         const fileIds = await getFilesForPhoneNumber(toNumber);
 
-        if (fileIds.length === 0) {
-            console.log(`No documents mapped for business number: ${toNumber}`);
-            return {
-                success: false,
-                noDocuments: true,
-                error: "No documents mapped to this business number",
-            };
-        }
-
         console.log(`Found ${fileIds.length} document(s) for business number ${toNumber}`);
 
         // 1.5. Fetch phone mapping details including system prompt and credentials
@@ -51,22 +42,23 @@ export async function generateAutoResponse(
             .select("system_prompt, intent, auth_token, origin")
             .eq("phone_number", toNumber);
 
-        if (mappingError || !phoneMappings || phoneMappings.length === 0) {
+        if (mappingError) {
             console.error("Error fetching phone mappings:", mappingError);
-            return {
-                success: false,
-                error: "Failed to fetch phone mapping details",
-            };
         }
 
-        // Get system prompt and credentials from first mapping (they should all be the same)
-        const customSystemPrompt = phoneMappings[0].system_prompt;
-        const auth_token = phoneMappings[0].auth_token;
-        const origin = phoneMappings[0].origin;
+        // Get system prompt and credentials from first mapping
+        // Fallback to environment variables if not found in database
+        const customSystemPrompt = phoneMappings?.[0]?.system_prompt;
+        const auth_token = phoneMappings?.[0]?.auth_token || process.env.WHATSAPP_11ZA_AUTH_TOKEN;
+        const origin = phoneMappings?.[0]?.origin || process.env.WHATSAPP_11ZA_ORIGIN;
 
-        console.log(`Retrieved ${phoneMappings.length} mappings for phone ${toNumber}`);
-        console.log(`Intent: ${phoneMappings[0].intent}`);
-        console.log(`Has custom system prompt: ${!!customSystemPrompt}`);
+        if (phoneMappings && phoneMappings.length > 0) {
+            console.log(`Retrieved ${phoneMappings.length} mappings for phone ${toNumber}`);
+            console.log(`Intent: ${phoneMappings[0].intent}`);
+        } else {
+            console.log(`No specific mappings found for phone ${toNumber}, using default/env fallback.`);
+        }
+
         if (customSystemPrompt) {
             console.log(`Custom system prompt (first 100 chars): ${customSystemPrompt.substring(0, 100)}...`);
         }
