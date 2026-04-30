@@ -103,11 +103,12 @@ export async function generateAutoResponse(
 
         const contextText = matches.map((m) => m.chunk).join("\n\n");
 
-        // 3.5 Detect Small Talk / Greetings
-        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|)$/i.test(messageText.trim().toLowerCase());
+        // 3.5 Detect Small Talk / Greetings / Acknowledgments
+        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy)$/i.test(messageText.trim().toLowerCase());
+        const isAcknowledgment = /^(ok|okkk|okay|okayy|kk|k|thanks|thank you|thx|tks)$/i.test(messageText.trim().toLowerCase());
         
-        // If it's just a greeting, we can clear the context to avoid irrelevant answers
-        const finalContext = isGreeting ? "" : contextText;
+        // If it's a greeting or a simple "ok", we clear the context to avoid random links
+        const finalContext = (isGreeting || isAcknowledgment) ? "" : contextText;
 
         // 4. Get conversation history for this phone number
         const { data: historyRows } = await supabase
@@ -132,14 +133,14 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `Answer ONLY from CONTEXT. If missing, say: "Is topic ka material mere database me nahi mila. Main MBBS, BDS aur NEET MDS notes provide karta hoon. Kya aapko inme help chahiye?"\n\n` +
             `==================================================\n` +
-            `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
+            `MATERIAL / LINK / PRICE RULE (CRITICAL)\n` +
             `==================================================\n` +
-            `If the user asks for PDF, material, or study notes:\n` +
-            `1. Search CONTEXT for the requested subject.\n` +
-            `2. You MUST provide the exact GOOGLE DRIVE LINK from CONTEXT.\n` +
+            `If the user asks for PDF, notes, material, or COST/PRICE:\n` +
+            `1. Search CONTEXT for the requested subject or bundle price.\n` +
+            `2. You MUST provide the exact GOOGLE DRIVE LINK and EXACT PRICE if present in CONTEXT.\n" +
             `3. Explain briefly why you are providing it (e.g., "Humare paas iske liye basics notes hain...").\n` +
-            `4. Format: Subject Name - Download Link: [URL]\n` +
-            `5. Answer ONLY the specific subject asked. No long summaries.\n\n` +
+            `4. Format: Subject/Bundle Name - Download Link: [URL] - Price: [Cost]\n` +
+            `5. Answer ONLY the specific subject or price asked. No long summaries.\n\n` +
             `==================================================\n` +
             `RESPONSE STYLE & FORMATTING (ULTRA-STRICT)\n` +
             `==================================================\n` +
@@ -158,7 +159,7 @@ export async function generateAutoResponse(
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting, you MUST reply exactly with: '😊 Hi! Main Medi Study Go assistant hoon. Aapko kis subject ya material me help chahiye? Humare paas MBBS, BDS, aur NEET MDS ke liye alag-alag subjects ke liye materials hain. Bataiye, aapko kis cheez mein help chahiye?'"}`
+                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting, reply with the standard Medi Study Go welcome message. If this is an acknowledgment (like ok, k, thanks), reply with: 'Theek hai! Kya aapko kisi aur subject ke notes ya pricing ke baare mein jaanna hai?'"}`
             },
             ...history.slice(-10), // Include last 10 messages (5 pairs) for context
             { role: "user" as const, content: messageText }
