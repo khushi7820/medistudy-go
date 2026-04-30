@@ -91,7 +91,7 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            6 // Balanced at 6 chunks
+            4 // Reduced from 6 to 4 to save tokens
         );
 
         // Filter by similarity threshold
@@ -122,7 +122,7 @@ export async function generateAutoResponse(
             .select("content_text, event_type, from_number, to_number")
             .or(`from_number.eq.${fromNumber},to_number.eq.${fromNumber}`) // Messages involving this user
             .order("received_at", { ascending: true })
-            .limit(20); // Last 20 messages for better context
+            .limit(8); // Reduced from 20 to 8 to save tokens
 
         // Build conversation history (user messages and AI responses)
         const history = (historyRows || [])
