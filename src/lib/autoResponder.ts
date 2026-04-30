@@ -1,10 +1,10 @@
 // ================================================================
-// 🔒 LOCKED autoResponder.ts v2.4 — ANTI-HALLUCINATION + SCOPE GUARD
-// 🔒 New in v2.4:
-// 🔒   - Out-of-scope detection (career/exam/non-product queries)
-// 🔒   - Empty/weak context guard (prevents LLM general-knowledge hallucination)
-// 🔒   - Pricing-aware retrieval (boosts price/cost queries)
-// 🔒   - 1-line off-topic + pivot reply
+// 🔒 LOCKED autoResponder.ts v2.5 — SUBJECT-FIRST SCOPE GUARD
+// 🔒 New in v2.5:
+// 🔒   - Removed "pharmacy" from OOS (it's an alias for Pharmacology!)
+// 🔒   - Removed ambiguous words that can mean approved subjects
+// 🔒   - More conservative OOS — only flags CLEAR career/exam questions
+// 🔒   - Subject validation runs FIRST always
 // ================================================================
 
 import { supabase } from "./supabaseClient";
@@ -32,21 +32,34 @@ const MULTI_VERSION_SUBJECTS = [
 
 // 🔒 OUT-OF-SCOPE patterns — career advice, exam help, non-product queries
 // Bot should NOT answer these from LLM training data (causes hallucination)
+//
+// 🔒 IMPORTANT: Only put words that CANNOT be an approved subject.
+// "pharmacy" is REMOVED (it's an alias for Pharmacology).
+// "physio" is REMOVED (it's an alias for Physiology).
+// We catch career-y phrasings instead, like "physiotherapist career".
 const OUT_OF_SCOPE_PATTERNS = [
-    // Career/profession queries (handle typos like "theropist", "homoepath")
-    /\b(BHMS|BAMS|BPT|nursing|pharmacy|paramedic)/i,
-    /\b(physio\w*|homeo\w*|homoeo\w*|ayurved\w*)/i, // catches physiotherapist, theropist, homoeopathy, etc.
-    /\b(career|salary|cutoff|cut-off|admission|college list|which (college|course))/i,
-    /\b(should I (do|choose|take|pursue|join)|kya karu|kya choose|kya lena chahiye)/i,
-    /\b(MBBS vs|BDS vs|vs MBBS|vs BDS|better than|which is better)/i,
-    /\b(if i (choose|take|do|pick|select))/i, // "if i choose physio..."
-    // Exam-specific (we don't give exam guidance)
-    /\b(exam (score|cutoff|pattern|date|syllabus|tips)|how (much|many) (marks|score))/i,
-    /\b(NEET (cutoff|score|rank|preparation|tips)|INICET (cutoff|tips))/i,
+    // Specific career degree codes (NOT our products)
+    /\b(BHMS|BAMS|BPT|BUMS|BSMS|MBA|BBA|MCA)\b/i,
+    // Career professions (full word — these are NEVER subjects in our catalog)
+    /\b(physiotherapist|physiotherapy|homeopath|homeopathy|homoeopath|homoeopathy|nurse|nursing|paramedic|ayurveda|ayurvedic|unani)\b/i,
+    // Career path queries
+    /\b(career|salary|earning|income|job opportunit|job after|career after|future scope|scope after)\b/i,
+    /\b(should I (do|choose|take|pursue|join|opt for|go for))\b/i,
+    /\b(kya karu|kya choose karu|kya lena chahiye|kaunsa karu|konsa lu)\b/i,
+    /\b(MBBS vs|BDS vs|vs MBBS|vs BDS|better than|which is better)\b/i,
+    /\b(if i (choose|take|do|pick|select|opt for|go for))\b/i, // "if i choose physio..."
+    // Exam-specific queries (we don't give exam guidance)
+    /\b(exam (cutoff|pattern|date|tips|preparation tips)|how (much|many) (marks|score|rank))\b/i,
+    /\b(NEET (cutoff|score|rank|preparation tips|exam tips)|INICET (cutoff|tips))\b/i,
+    /\b(score (we |I )?need (in |for ))/i, // "how much score we need in NEET"
     // General medical queries (not our domain)
-    /\b(treatment|disease|symptom|medicine for|cure for|doctor for)/i,
+    /\b(treatment for|disease|symptoms?|medicine for|cure for|doctor for|prescribe)\b/i,
     // Generic life advice
-    /\b(what should I (do|study)|guide me on (career|life)|future planning)/i,
+    /\b(future planning|guide me on (career|life))\b/i,
+    // Admission/college specific
+    /\b(college (list|admission|fees)|admission process|cut-?off marks)\b/i,
+    // "what is X" where X is a non-product term (broader catch-all)
+    /\b(what is|kya hai)\s+(BHMS|BAMS|BPT|homeopathy|homoeopathy|ayurveda|physiotherapy|nursing)\b/i,
 ];
 
 // 🔒 PRICING/COST patterns — boost retrieval for these
@@ -133,12 +146,38 @@ function isPronounQuery(messageText: string): boolean {
  *
  * 🔒 IMPORTANT: If the message matches an APPROVED subject (like "physiology"),
  * it's NOT out-of-scope even if it contains a trigger word.
+ *
+ * 🔒 EXCEPTION: If the message has STRONG career indicators (BHMS, "should I",
+ * "if i choose", career, salary), treat as OOS even if a subject keyword appears.
+ * Example: "if i choose physio theropist" — "physio" is matched, but the phrase
+ * is clearly career advice.
  */
+const STRONG_CAREER_INDICATORS = [
+    /\b(BHMS|BAMS|BPT|BUMS|BSMS)\b/i,
+    /\b(should I (do|choose|take|pursue))\b/i,
+    /\b(if i (choose|take|opt for|go for))\b/i,
+    /\b(career|salary|future scope|job opportunit)\b/i,
+    /\b(MBBS vs|BDS vs|vs MBBS|vs BDS|better than)\b/i,
+    /\b(theropist|therapist)\b/i, // "physio theropist", "physiotherapist"
+    /\b(NEET (cutoff|score|rank))/i,
+    /\b(score (we |I )?need (in |for ))/i,
+    /\b(kya karu|kaunsa karu|konsa lu)\b/i,
+];
+
+function hasStrongCareerIndicator(text: string): boolean {
+    return STRONG_CAREER_INDICATORS.some(p => p.test(text));
+}
+
 function isOutOfScope(messageText: string): boolean {
+    // 🛡️ Special override: strong career indicators ALWAYS win
+    if (hasStrongCareerIndicator(messageText)) {
+        return true;
+    }
+
     // 🛡️ FIRST: Check if it's a valid subject request — if yes, NOT out of scope
     const subjectCheck = validateSubjectRequest(messageText);
     if (subjectCheck.status === "MATCHED") {
-        return false; // It's an approved subject, never out-of-scope
+        return false;
     }
 
     // 🔍 THEN: Check if it matches OOS patterns

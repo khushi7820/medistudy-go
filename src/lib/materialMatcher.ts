@@ -24,7 +24,7 @@ const SUBJECT_CATALOG = [
     // ─── BDS SECOND YEAR ────────────────────────────────────
     { canonical: "General Pathology", aliases: ["general pathology", "g path", "gpath", "pathology", "patho"] },
     { canonical: "Microbiology", aliases: ["microbiology", "micro", "microbio"] },
-    { canonical: "Pharmacology", aliases: ["pharmacology", "pharma", "pharmac", "pharmaco"] },
+    { canonical: "Pharmacology", aliases: ["pharmacology", "pharma", "pharmac", "pharmaco", "pharmacy"] },
     { canonical: "Dental Materials", aliases: ["dental materials", "dm", "dental material"] },
 
     // ─── BDS THIRD YEAR ─────────────────────────────────────
