@@ -91,7 +91,7 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            8 // Increased to 8 for better accuracy
+            3 // Reduced to 3 to stay under 6000 TPM limit
         );
 
         // Filter by similarity threshold
@@ -114,15 +114,15 @@ export async function generateAutoResponse(
         // Add material intent to system prompt if detected
         const intentInstruction = isMaterialRequest 
             ? "USER IS ASKING FOR MATERIAL. Use ZONE 2 format: 📚 Study Material Found..." 
-            : "USER IS NOT ASKING FOR MATERIAL. If they are just introducing themselves or asking general questions, answer politely from ZONE 1 or just acknowledge.";
+            : "USER IS NOT ASKING FOR MATERIAL. Answer from ZONE 1 or politely acknowledge.";
 
         // 4. Get conversation history for this phone number
         const { data: historyRows } = await supabase
             .from("whatsapp_messages")
             .select("content_text, event_type, from_number, to_number")
             .or(`from_number.eq.${fromNumber},to_number.eq.${fromNumber}`) // Messages involving this user
-            .order("received_at", { ascending: true })
-            .limit(8); // Reduced from 20 to 8 to save tokens
+            .order("received_at", { ascending: false }) // Get latest first
+            .limit(4); // Reduced to 4 messages to save tokens
 
         // Build conversation history (user messages and AI responses)
         const history = (historyRows || [])
@@ -130,7 +130,8 @@ export async function generateAutoResponse(
             .map(m => ({
                 role: m.event_type === "MoMessage" ? "user" as const : "assistant" as const,
                 content: m.content_text
-            }));
+            }))
+            .reverse(); // Back to chronological order
 
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
