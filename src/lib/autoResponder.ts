@@ -107,13 +107,13 @@ export async function generateAutoResponse(
         const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy)$/i.test(messageText.trim().toLowerCase());
         const isAcknowledgment = /^(ok|okkk|okay|okayy|kk|k|thanks|thank you|thx|tks)$/i.test(messageText.trim().toLowerCase());
         const isMaterialRequest = /(pdf|material|notes|link|bundle|drive|source|bhejo|chahiye|send|give)\s+(anatomy|physiology|biochemistry|pharmacology|pathology|microbiology|surgery|medicine|dentistry|bds|mbbs|mds)/i.test(messageText.toLowerCase());
-        
+
         // If it's a simple greeting or "ok", we clear the context. FAQ questions (who are you, etc.) SHOULD search the PDF.
         const finalContext = (isGreeting || isAcknowledgment) ? "" : contextText;
 
         // Add material intent to system prompt if detected
-        const intentInstruction = isMaterialRequest 
-            ? "USER IS ASKING FOR MATERIAL. Search CONTEXT for real Drive links. If no link is found in CONTEXT, say it is not available. NEVER CREATE A FAKE LINK." 
+        const intentInstruction = isMaterialRequest
+            ? "USER IS ASKING FOR MATERIAL. Search CONTEXT for real Drive links. If no link is found in CONTEXT, say it is not available. NEVER CREATE A FAKE LINK."
             : "USER IS NOT ASKING FOR MATERIAL. Answer from ZONE 1 or politely acknowledge.";
 
         // 4. Get conversation history for this phone number
@@ -149,8 +149,8 @@ export async function generateAutoResponse(
             `MATERIAL FORMAT (ONLY IF LINK FOUND):\n` +
             `📚 *Study Material Found*\n` +
             `*Subject:* [Name]\n` +
-            `🔗 *Link:* [Real Drive Link from Context]\n\n` +
-            `GREETING: Hi 😊 Main Medi Study Go assistant hoon. MBBS, BDS aur NEET preparation ke liye hum visual mind maps, bundles aur materials provide karte hain. Aapko kis subject me help chahiye?`;
+            `ACKNOWLEDGE (OK/Thanks): "You're welcome 😊 Aur kis subject ya material me help chahiye?"\n\n` +
+            `GREETING: "Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study bundles, books aur materials provide karte hain. Aapko kis subject ya bundle me help chahiye?"`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
