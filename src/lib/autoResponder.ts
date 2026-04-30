@@ -180,7 +180,7 @@ export async function generateAutoResponse(
                 role: "system" as const,
                 content: `${systemPrompt}\n\nINTENT GUIDANCE: ${intentInstruction}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting or introduction, answer politely. If it is a material request, use the fallback: 'Is specific material ka link abhi hamare available directory me nahi mila. Aap kisi aur subject ka naam bhej sakte hain 😊'"}`
             },
-            ...history.slice(-10), // Include last 10 messages (5 pairs) for context
+            ...history.slice(-6), // Reduced from -10 to -6 to save tokens
             { role: "user" as const, content: messageText }
         ];
 
@@ -189,9 +189,9 @@ export async function generateAutoResponse(
         console.log(`Conversation history: ${history.length} messages`);
 
         const completion = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             messages,
-            temperature: 0.2,
+            temperature: 0.1,
             max_tokens: 500, // Keep responses concise for WhatsApp
         });
 
