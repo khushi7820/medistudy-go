@@ -88,17 +88,27 @@ export async function generateAutoResponse(
         }
 
         // 3. Retrieve relevant chunks from all mapped documents
-        const matches = await retrieveRelevantChunksFromFiles(
+        const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
             5
         );
 
+        // Filter by similarity threshold (e.g., 0.5 or 50% match)
+        // This prevents "hey" from matching random chunks like "Biochemistry"
+        const matches = allMatches.filter(m => m.similarity > 0.5);
+
         if (matches.length === 0) {
-            console.log("No relevant chunks found");
+            console.log("No relevant chunks found above threshold");
         }
 
         const contextText = matches.map((m) => m.chunk).join("\n\n");
+
+        // 3.5 Detect Small Talk / Greetings
+        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo)$/i.test(messageText.trim());
+        
+        // If it's just a greeting, we can clear the context to avoid "Biochemistry" forced answers
+        const finalContext = isGreeting ? "" : contextText;
 
         // 4. Get conversation history for this phone number
         const { data: historyRows } = await supabase
@@ -148,7 +158,7 @@ export async function generateAutoResponse(
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\nCONTEXT:\n${contextText || "No relevant context found in the documents."}`
+                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found in the documents. If this is a greeting, reply politely. If it's a question, inform the user you don't have that info."}`
             },
             ...history.slice(-10), // Include last 10 messages (5 pairs) for context
             { role: "user" as const, content: messageText }
