@@ -153,7 +153,7 @@ export async function generateAutoResponse(
             `Subject: [Name]\n` +
             `Link: [Real Drive Link]\n\n` +
             `ACKNOWLEDGE: You're welcome! 😊\n\n` +
-            `GREETING: Hi 😊 Main Medi Study Go assistant hoon. Aapko kis subject ya bundle me help chahiye?`;
+            `GREETING: 😊 Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study bundles, books aur materials provide karte hain. Aapko kis subject ya bundle me help chahiye?`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
