@@ -14,14 +14,14 @@
  */
 const SUBJECT_CATALOG = [
     // ─── BDS FIRST YEAR ─────────────────────────────────────
-    { canonical: "PHARMACOLOGY", aliases: ["pharmacy", "pharma", "pharmac", "pharmacology", "pharm"] },
+    { canonical: "PHARMACOLOGY", aliases: ["pharmacology", "pharmacy student", "pharma notes", "pharmac", "pharm"] },
 
     { canonical: "Product profile for Neuro_com", aliases: ["neuro", "neurology", "neuro material", "neurocom"] },
     { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy"] },
 
     { canonical: "MICRO", aliases: ["micro", "microbio", "microbiology"] },
     { canonical: "BIOCHEMISTRY", aliases: ["biochem", "bio chem", "biochemistry"] },
-    { canonical: "PHYSIOLOGY", aliases: ["physio", "physiology"] },
+    { canonical: "PHYSIOLOGY", aliases: ["physiology", "physio notes", "body functions"] },
 
     { canonical: "Anat Bundle", aliases: ["anat", "anatomy", "anat bundle", "anatomy bundle", "full anatomy"] },
     { canonical: "Anat bundle + GA + Osteo", aliases: ["anatomy ga osteo", "anat ga osteo"] },
