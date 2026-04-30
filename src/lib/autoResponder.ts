@@ -96,11 +96,11 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            8 // Increased from 5 to 8 to get more potential links
+            4 // Reduced from 8 to 4 to prevent overwhelming the AI with too much data
         );
 
         // Filter by similarity threshold
-        const matches = allMatches.filter(m => m.similarity > 0.4); // Slightly lower threshold
+        const matches = allMatches.filter(m => m.similarity > 0.45); // Slightly higher threshold
 
         if (matches.length === 0) {
             console.log("No relevant chunks found above threshold");
@@ -133,27 +133,17 @@ export async function generateAutoResponse(
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
             `==================================================\n` +
-            `STRICT KNOWLEDGE RULE\n` +
+            `ULTRA-STRICT RULES (ZERO TOLERANCE)\n` +
             `==================================================\n` +
-            `Answer ONLY from the provided CONTEXT. If the requested info or subject is missing from CONTEXT, say:\n` +
-            `"Is topic ka exact material mere database me nahi mila. Main MBBS, BDS aur NEET MDS ke subjects (jaise Anatomy, Physiology, Biochemistry, Pharmacology, etc.) ke notes aur links provide karta hoon. Kya aapko inme se kisi subject me help chahiye?"\n\n` +
+            `1. LENGTH: Maximum 5 lines. NO exceptions.\n` +
+            `2. NO FORMATTING: ZERO '*' (STARS) and ZERO '#' (HASHES). Use plain text ONLY.\n` +
+            `3. NO SUMMARIES: Do not list every subject. Only answer specifically what was asked.\n` +
+            `4. LINKS: Provide ONLY the specific link requested, not the whole database.\n` +
+            `5. LANGUAGE: Hinglish/Hindi/English.\n\n` +
             `==================================================\n` +
-            `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
+            `KNOWLEDGE RULE\n` +
             `==================================================\n` +
-            `If the user asks for PDF, material, or study notes:\n` +
-            `1. You MUST provide the exact GOOGLE DRIVE LINK (URL) if it exists in the CONTEXT.\n` +
-            `2. DO NOT just list the subject names; the link is the most important part.\n` +
-            `3. Format: Subject Name\nDownload Link: [URL]\n` +
-            `4. If multiple links exist for different parts, list them clearly.\n\n` +
-            `==================================================\n` +
-            `RESPONSE STYLE & FORMATTING (IMPORTANT)\n` +
-            `==================================================\n` +
-            `- DO NOT BE ROBOTIC: Explain briefly why you are providing the link (e.g., "Humare paas NEET ke liye yeh material hai...").\n` +
-            `- KEEP IT CONCISE: Around 4 to 6 lines maximum.\n` +
-            `- DO NOT USE '*' (STARS) OR '#' (HASHES).\n` +
-            `- Use plain text and line breaks for clarity.\n` +
-            `- Use Hinglish/Hindi/English based on user's current message.\n` +
-            `- Be professional and helpful.`;
+            `Answer ONLY from the provided CONTEXT. If info is missing, use the fallback: "Is topic ka material mere database me nahi mila. Main MBBS, BDS aur NEET MDS notes provide karta hoon. Kya aapko inme help chahiye?"`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
