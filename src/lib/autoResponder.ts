@@ -103,12 +103,12 @@ export async function generateAutoResponse(
 
         const contextText = matches.map((m) => m.chunk).join("\n\n");
 
-        // 3.5 Detect Small Talk / Greetings / Acknowledgments / Material Requests
-        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy)$/i.test(messageText.trim().toLowerCase());
+        // 3.5 Detect Small Talk / Greetings / Identity / Material Requests
+        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|aap kaun ho|aap kya karte ho|who are you|what you do|intro|introduce)$/i.test(messageText.trim().toLowerCase());
         const isAcknowledgment = /^(ok|okkk|okay|okayy|kk|k|thanks|thank you|thx|tks)$/i.test(messageText.trim().toLowerCase());
-        const isMaterialRequest = /pdf|material|notes|link|bundle|drive|source|bhejo|chahiye|send|give/i.test(messageText.toLowerCase());
+        const isMaterialRequest = /(pdf|material|notes|link|bundle|drive|source|bhejo|chahiye|send|give)\s+(anatomy|physiology|biochemistry|pharmacology|pathology|microbiology|surgery|medicine|dentistry|bds|mbbs|mds)/i.test(messageText.toLowerCase());
         
-        // If it's a greeting or a simple "ok", we clear the context to avoid random links
+        // If it's identity check or greeting, we clear the context to avoid random links
         const finalContext = (isGreeting || isAcknowledgment) ? "" : contextText;
 
         // Add material intent to system prompt if detected
