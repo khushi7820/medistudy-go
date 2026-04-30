@@ -143,6 +143,8 @@ export async function generateAutoResponse(
             `MASTER WORKFLOW GUIDE (STRICT PRECISION):\n\n` +
             `PHASE 1: INTENT DETECTION\n` +
             `- If user says hi/hello/hey/hy: Reply with the FULL GREETING below. Do NOT send only an emoji.\n` +
+            `- If user asks about price/delivery/app/bundles: Use FAQ context (ZONE 1).\n` +
+            `- If user asks for PDF/Notes/Material/Link: Use MATERIAL DIRECTORY (ZONE 2).\n` +
             `- If user asks for one thing, answer ONLY that thing. Do NOT list other subjects.\n\n` +
             `PHASE 2: KNOWLEDGE RETRIEVAL (STRICT)\n` +
             `- Use ONLY provided CONTEXT. Never create fake links.\n\n` +
