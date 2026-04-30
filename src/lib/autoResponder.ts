@@ -134,17 +134,19 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
             `==================================================\n` +
-            `If user asks for PDF/notes/material:\n` +
-            `1. Provide the exact GOOGLE DRIVE LINK from CONTEXT.\n` +
-            `2. Format: Subject Name - Download Link: [URL]\n` +
-            `3. Answer ONLY the specific subject asked. No extra lists.\n\n` +
+            `If the user asks for PDF, material, or study notes:\n` +
+            `1. Search CONTEXT for the requested subject.\n` +
+            `2. You MUST provide the exact GOOGLE DRIVE LINK from CONTEXT.\n` +
+            `3. Explain briefly why you are providing it (e.g., "Humare paas iske liye basics notes hain...").\n` +
+            `4. Format: Subject Name - Download Link: [URL]\n` +
+            `5. Answer ONLY the specific subject asked. No long summaries.\n\n` +
             `==================================================\n` +
             `RESPONSE STYLE & FORMATTING (ULTRA-STRICT)\n` +
             `==================================================\n` +
             `- LENGTH: 3 to 5 lines MAXIMUM. NO LONG MESSAGES.\n` +
             `- NO STARS/HASHES: Use ZERO '*' and ZERO '#'. Clean text only.\n` +
-            `- LANGUAGE: Same as user's message (Hinglish/Hindi/English).\n` +
-            `- Be professional and helpful.`;
+            `- LANGUAGE: Same as user's current message (Hinglish/Hindi/English).\n` +
+            `- Be professional and helpful as Medi Study Go Assistant.`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
