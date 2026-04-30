@@ -135,7 +135,8 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `STRICT KNOWLEDGE RULE\n` +
             `==================================================\n` +
-            `Answer ONLY from the provided CONTEXT. If info is missing, say you don't have it.\n\n` +
+            `Answer ONLY from the provided CONTEXT. If the requested info or subject is missing from CONTEXT, say:\n` +
+            `"Is topic ka exact material mere database me nahi mila. Main MBBS, BDS aur NEET MDS ke subjects (jaise Anatomy, Physiology, Biochemistry, Pharmacology, etc.) ke notes aur links provide karta hoon. Kya aapko inme se kisi subject me help chahiye?"\n\n` +
             `==================================================\n` +
             `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
             `==================================================\n` +
