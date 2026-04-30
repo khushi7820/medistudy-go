@@ -176,7 +176,7 @@ export async function generateAutoResponse(
         console.log(`Conversation history: ${history.length} messages`);
 
         const completion = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile", // Switched back to 70b as requested
+            model: "llama-3.1-8b-instant", // Essential to bypass 100k TPD limit of 70b model
             messages,
             temperature: 0.1,
             max_tokens: 500,
