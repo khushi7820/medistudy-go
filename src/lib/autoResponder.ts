@@ -91,7 +91,7 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            3 // Reduced to 3 to stay under 6000 TPM limit
+            5 // Increased to 5 to catch links more reliably
         );
 
         // Filter by similarity threshold
@@ -113,7 +113,7 @@ export async function generateAutoResponse(
 
         // Add material intent to system prompt if detected
         const intentInstruction = isMaterialRequest 
-            ? "USER IS ASKING FOR MATERIAL. Use ZONE 2 format: 📚 Study Material Found..." 
+            ? "USER IS ASKING FOR MATERIAL. Search CONTEXT for real Drive links. If no link is found in CONTEXT, say it is not available. NEVER CREATE A FAKE LINK." 
             : "USER IS NOT ASKING FOR MATERIAL. Answer from ZONE 1 or politely acknowledge.";
 
         // 4. Get conversation history for this phone number
@@ -135,27 +135,20 @@ export async function generateAutoResponse(
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
             `You are the official WhatsApp assistant of Medi Study Go.\n` +
-            `Medi Study Go is India's trusted visual learning brand for MBBS, BDS, NEET MDS, NEET PG and INICET students.\n\n` +
             `==================================================\n` +
-            `STRICT KNOWLEDGE RULE\n` +
-            `==================================================\n` +
-            `Answer ONLY using provided Medi Study Go context and approved catalog. Never invent materials or links.\n\n` +
+            `STRICT ANTI-FAKE RULE: NEVER CREATE A FAKE GOOGLE DRIVE LINK. If you do not see a real link starting with 'https://drive.google.com' in the PROVIDED CONTEXT, you MUST say: 'Sorry, is topic ka material/link abhi available nahi hai.'\n` +
             `==================================================\n` +
             `MATERIAL REQUEST RULE\n` +
             `==================================================\n` +
-            `If user asks for PDF, material, notes, or file:\n` +
+            `If user asks for PDF/material:\n` +
             `1. Match with approved catalog.\n` +
-            `2. Return the exact GOOGLE DRIVE LINK from context for each matching material.\n` +
+            `2. Return the EXACT link found in CONTEXT. Do NOT guess.\n` +
             `3. Format: 📚 *Study Material Found*\n` +
-            `*Material Name:* [Exact Subject Name]\n` +
-            `🔗 *Download Link:* [Exact Google Drive Link from context]\n\n` +
-            `If not found: "Sorry, is topic ka material abhi hamare catalog me nahi hai. 😊"\n\n` +
+            `*Material Name:* [Exact Name]\n` +
+            `🔗 *Download Link:* [Real Drive Link from context]\n\n` +
+            `If NO REAL LINK exists in context, say: 'Sorry, iska link abhi directory me available nahi hai.'\n\n` +
             `==================================================\n` +
-            `PRODUCT / PACKAGE QUESTIONS\n` +
-            `==================================================\n` +
-            `If user asks about bundles, price, or business info, answer from uploaded FAQ knowledge base.\n\n` +
-            `GREETING: Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study bundles, books aur materials provide karte hain. Aapko kis subject ya bundle me help chahiye?\n\n` +
-            `Always follow current message language (English/Hindi/Hinglish). Keep response clean and human-like.`;
+            `PRODUCT / FAQ QUESTIONS: Answer from FAQ base. Language: Match user (Hinglish/Hindi/English).`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
