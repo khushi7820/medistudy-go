@@ -106,20 +106,20 @@ export async function generateAutoResponse(
         // 3.5 Detect Small Talk / Greetings / Identity / Material Requests
         const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy)$/i.test(messageText.trim().toLowerCase());
         const isAcknowledgment = /^(ok|okkk|okay|okayy|kk|k|thanks|thank you|thx|tks)$/i.test(messageText.trim().toLowerCase());
-        
+
         // Improved: Detect material intent if they mention keywords OR any subject name
         const subjects = ["anatomy", "physiology", "biochemistry", "pharmacology", "pathology", "microbiology", "surgery", "medicine", "dentistry", "bds", "mbbs", "mds", "abdomen", "thorax", "pelvis", "neuroanatomy", "osteology"];
         const hasSubject = subjects.some(s => messageText.toLowerCase().includes(s));
         const hasMaterialKeyword = /(pdf|material|notes|link|bundle|drive|source|bhejo|chahiye|send|give|sample|file)/i.test(messageText.toLowerCase());
-        
+
         const isMaterialRequest = hasMaterialKeyword || (hasSubject && messageText.length < 20); // Catch single subject names
-        
+
         // If it's a simple greeting or "ok", we clear the context.
         const finalContext = (isGreeting || isAcknowledgment) ? "" : contextText;
 
         // Add material intent to system prompt if detected
-        const intentInstruction = isMaterialRequest 
-            ? "CRITICAL: USER WANTS MATERIAL/LINK. Stop selling. Search CONTEXT for a Drive link. If found, give it immediately in ZONE 2 format. If no link found, say it's not in directory." 
+        const intentInstruction = isMaterialRequest
+            ? "CRITICAL: USER WANTS MATERIAL/LINK. Stop selling. Search CONTEXT for a Drive link. If found, give it immediately in ZONE 2 format. If no link found, say it's not in directory."
             : "USER IS ASKING GENERAL QUESTIONS. Answer from FAQ (ZONE 1).";
 
         // 4. Get conversation history for this phone number
