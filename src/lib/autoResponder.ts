@@ -147,10 +147,11 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `RESPONSE STYLE & FORMATTING (IMPORTANT)\n` +
             `==================================================\n` +
-            `- DO NOT USE '*' (STARS) OR '#' (HASHES) for bolding or headers.\n` +
-            `- Use plain text only for subject names and titles.\n` +
+            `- KEEP RESPONSES BRIEF: 3 to 5 lines maximum.\n` +
+            `- DO NOT cut sentences; explain clearly but very concisely.\n` +
+            `- DO NOT USE '*' (STARS) OR '#' (HASHES).\n` +
+            `- Use plain text and line breaks.\n` +
             `- Use Hinglish/Hindi/English based on user's current message.\n` +
-            `- Use line breaks (new lines) to separate sections.\n` +
             `- Be professional and helpful.`;
 
         let systemPrompt: string;
