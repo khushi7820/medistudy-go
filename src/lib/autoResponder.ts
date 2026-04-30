@@ -120,9 +120,8 @@ export async function generateAutoResponse(
         const { data: historyRows } = await supabase
             .from("whatsapp_messages")
             .select("content_text, event_type, from_number, to_number")
-            .or(`from_number.eq.${fromNumber},to_number.eq.${fromNumber}`) // Messages involving this user
-            .order("received_at", { ascending: false }) // Get latest first
-            .limit(4); // Reduced to 4 messages to save tokens
+            .order("received_at", { ascending: false })
+            .limit(3); // STRICT LIMIT: Last 3 messages only
 
         // Build conversation history (user messages and AI responses)
         const history = (historyRows || [])
@@ -131,57 +130,44 @@ export async function generateAutoResponse(
                 role: m.event_type === "MoMessage" ? "user" as const : "assistant" as const,
                 content: m.content_text
             }))
-            .reverse(); // Back to chronological order
+            .reverse();
 
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
-            `You are the official professional WhatsApp assistant of Medi Study Go.\n` +
+            `You are the official WhatsApp assistant of Medi Study Go.\n` +
             `Medi Study Go is India's trusted visual learning brand for MBBS, BDS, NEET MDS, NEET PG and INICET students.\n\n` +
-            `====================================================\n` +
-            `STRICT CONTEXT UNDERSTANDING RULE (VERY IMPORTANT)\n` +
-            `====================================================\n` +
-            `The uploaded context document contains TWO SEPARATE KNOWLEDGE ZONES:\n` +
-            `ZONE 1 = PRODUCT KNOWLEDGE BASE (FAQ, Pricing, Delivery, App info)\n` +
-            `ZONE 2 = COMPLETE MATERIAL LINK DIRECTORY (Subject Names, Google Drive Links)\n\n` +
-            `You must answer ONLY from the provided CONTEXT. Never imagine or assume info.\n\n` +
-            `----------------------------------------------------\n` +
-            `IF USER IS ASKING NORMAL PRODUCT / FAQ QUESTIONS:\n` +
-            `----------------------------------------------------\n` +
-            `- Answer from ZONE 1.\n` +
-            `- Give full structured answer with bold headings and bullets.\n\n` +
-            `----------------------------------------------------\n` +
-            `IF USER IS ASKING FOR MATERIAL / PDF / NOTES / LINK:\n` +
-            `----------------------------------------------------\n` +
-            `DO NOT give product explanation. Instead:\n` +
-            `1. Search ZONE 2 for exact subject name.\n` +
-            `2. Return exact link in this format:\n` +
-            `📚 *Study Material Found*\n` +
-            `*Material Name:* [Exact Subject Name]\n` +
-            `🔗 *Material Link:* [Exact Google Drive Link from context]\n\n` +
-            `3. If not found, say: "Is specific material ka link abhi hamare available directory me nahi mila. Aap kisi aur subject ka naam bhej sakte hain 😊"\n\n` +
-            `----------------------------------------------------\n` +
-            `LANGUAGE & STYLE RULES\n` +
-            `----------------------------------------------------\n` +
-            `- Reply in the SAME LANGUAGE as the user (English/Hindi/Hinglish).\n` +
-            `- Use bold headings and WhatsApp-friendly formatting.\n` +
-            `- Keep it concise but complete. Never send huge paragraphs.\n` +
-            `- hi/hello/hey -> Hi 😊 Main Medi Study Go assistant hoon. MBBS, BDS aur NEET preparation ke liye hum visual mind maps, flashcards, bundles aur study materials provide karte hain. Aapko kis subject ya material me help chahiye?\n` +
-            `- thanks/ok -> You're welcome 😊 Aur kisi subject ya product ki help chahiye?\n\n` +
-            `Always prioritize exact context retrieval over general AI knowledge.`;
+            `==================================================\n` +
+            `STRICT KNOWLEDGE RULE\n` +
+            `==================================================\n` +
+            `Answer ONLY using provided Medi Study Go context and approved catalog. Never invent materials or links.\n\n` +
+            `==================================================\n` +
+            `MATERIAL REQUEST RULE\n` +
+            `==================================================\n` +
+            `If user asks for PDF, material, notes, or file:\n` +
+            `1. Match with approved catalog.\n` +
+            `2. Reply ONLY with exact matching material names.\n` +
+            `3. Format: 📚 *Available Study Material:* • [Exact Material Name].\n` +
+            `4. Do NOT provide Google Drive links here. Ask user if they want details.\n\n` +
+            `==================================================\n` +
+            `PRODUCT / PACKAGE QUESTIONS\n` +
+            `==================================================\n` +
+            `If user asks about bundles, price, or business info, answer from uploaded FAQ knowledge base.\n\n` +
+            `GREETING: Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study bundles, books aur materials provide karte hain. Aapko kis subject ya bundle me help chahiye?\n\n` +
+            `Always follow current message language (English/Hindi/Hinglish). Keep response clean and human-like.`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
-            systemPrompt = `${customSystemPrompt}\n\n${documentRules}`;
+            systemPrompt = customSystemPrompt;
         } else {
-            systemPrompt = `You are the official professional WhatsApp assistant of Medi Study Go.\n\n${documentRules}`;
+            systemPrompt = documentRules;
         }
 
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\nINTENT GUIDANCE: ${intentInstruction}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting or introduction, answer politely. If it is a material request, use the fallback: 'Is specific material ka link abhi hamare available directory me nahi mila. Aap kisi aur subject ka naam bhej sakte hain 😊'"}`
+                content: `${systemPrompt}\n\nINTENT: ${intentInstruction}\n\nCONTEXT:\n${finalContext || "No relevant context found."}`
             },
-            ...history.slice(-6), // Reduced from -10 to -6 to save tokens
+            ...history,
             { role: "user" as const, content: messageText }
         ];
 
@@ -190,10 +176,10 @@ export async function generateAutoResponse(
         console.log(`Conversation history: ${history.length} messages`);
 
         const completion = await groq.chat.completions.create({
-            model: "llama-3.1-8b-instant",
+            model: "llama-3.3-70b-versatile", // Switched back to 70b as requested
             messages,
             temperature: 0.1,
-            max_tokens: 500, // Keep responses concise for WhatsApp
+            max_tokens: 500,
         });
 
         const response = completion.choices[0].message.content;
