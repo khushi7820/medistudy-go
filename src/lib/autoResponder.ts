@@ -133,17 +133,23 @@ export async function generateAutoResponse(
         // 5. Generate response using Groq with dynamic system prompt
         const documentRules =
             `==================================================\n` +
-            `ULTRA-STRICT RULES (ZERO TOLERANCE)\n` +
+            `STRICT KNOWLEDGE RULE\n` +
             `==================================================\n` +
-            `1. LENGTH: Maximum 5 lines. NO exceptions.\n` +
-            `2. NO FORMATTING: ZERO '*' (STARS) and ZERO '#' (HASHES). Use plain text ONLY.\n` +
-            `3. NO SUMMARIES: Do not list every subject. Only answer specifically what was asked.\n` +
-            `4. LINKS: Provide ONLY the specific link requested, not the whole database.\n` +
-            `5. LANGUAGE: Hinglish/Hindi/English.\n\n` +
+            `Answer ONLY from CONTEXT. If missing, say: "Is topic ka material mere database me nahi mila. Main MBBS, BDS aur NEET MDS notes provide karta hoon. Kya aapko inme help chahiye?"\n\n` +
             `==================================================\n` +
-            `KNOWLEDGE RULE\n` +
+            `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
             `==================================================\n` +
-            `Answer ONLY from the provided CONTEXT. If info is missing, use the fallback: "Is topic ka material mere database me nahi mila. Main MBBS, BDS aur NEET MDS notes provide karta hoon. Kya aapko inme help chahiye?"`;
+            `If user asks for PDF/notes/material:\n` +
+            `1. Provide the exact GOOGLE DRIVE LINK from CONTEXT.\n` +
+            `2. Format: Subject Name - Download Link: [URL]\n` +
+            `3. Answer ONLY the specific subject asked. No extra lists.\n\n` +
+            `==================================================\n` +
+            `RESPONSE STYLE & FORMATTING (ULTRA-STRICT)\n` +
+            `==================================================\n` +
+            `- LENGTH: 3 to 5 lines MAXIMUM. NO LONG MESSAGES.\n` +
+            `- NO STARS/HASHES: Use ZERO '*' and ZERO '#'. Clean text only.\n` +
+            `- LANGUAGE: Same as user's message (Hinglish/Hindi/English).\n` +
+            `- Be professional and helpful.`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
