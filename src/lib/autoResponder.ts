@@ -1,10 +1,10 @@
 // ================================================================
-// 🔒 LOCKED autoResponder.ts v2.3 — GREETING-FIRST + HISTORY BYPASS
-// 🔒 New in v2.3:
-// 🔒   - Greeting/Ack DETECTED FIRST (before history fetch)
-// 🔒   - History BYPASSED for greetings (prevents pattern repetition)
-// 🔒   - Hardcoded greeting/ack response (skip LLM entirely for these)
-// 🔒   - Better history filter (only between fromNumber ↔ toNumber)
+// 🔒 LOCKED autoResponder.ts v2.4 — ANTI-HALLUCINATION + SCOPE GUARD
+// 🔒 New in v2.4:
+// 🔒   - Out-of-scope detection (career/exam/non-product queries)
+// 🔒   - Empty/weak context guard (prevents LLM general-knowledge hallucination)
+// 🔒   - Pricing-aware retrieval (boosts price/cost queries)
+// 🔒   - 1-line off-topic + pivot reply
 // ================================================================
 
 import { supabase } from "./supabaseClient";
@@ -30,19 +30,37 @@ const MULTI_VERSION_SUBJECTS = [
     "neet mds", "neetmds", "mds prep", "mds notes",
 ];
 
+// 🔒 OUT-OF-SCOPE patterns — career advice, exam help, non-product queries
+// Bot should NOT answer these from LLM training data (causes hallucination)
+const OUT_OF_SCOPE_PATTERNS = [
+    // Career/profession queries (handle typos like "theropist", "homoepath")
+    /\b(BHMS|BAMS|BPT|nursing|pharmacy|paramedic)/i,
+    /\b(physio\w*|homeo\w*|homoeo\w*|ayurved\w*)/i, // catches physiotherapist, theropist, homoeopathy, etc.
+    /\b(career|salary|cutoff|cut-off|admission|college list|which (college|course))/i,
+    /\b(should I (do|choose|take|pursue|join)|kya karu|kya choose|kya lena chahiye)/i,
+    /\b(MBBS vs|BDS vs|vs MBBS|vs BDS|better than|which is better)/i,
+    /\b(if i (choose|take|do|pick|select))/i, // "if i choose physio..."
+    // Exam-specific (we don't give exam guidance)
+    /\b(exam (score|cutoff|pattern|date|syllabus|tips)|how (much|many) (marks|score))/i,
+    /\b(NEET (cutoff|score|rank|preparation|tips)|INICET (cutoff|tips))/i,
+    // General medical queries (not our domain)
+    /\b(treatment|disease|symptom|medicine for|cure for|doctor for)/i,
+    // Generic life advice
+    /\b(what should I (do|study)|guide me on (career|life)|future planning)/i,
+];
+
+// 🔒 PRICING/COST patterns — boost retrieval for these
+const PRICING_PATTERNS = [
+    /\b(price|cost|kitne ka|kitna|kya rate|how much|fees|charges|paisa|rupee|rs|₹)/i,
+    /\b(discount|coupon|offer|sasta|cheap|expensive|mehnga)/i,
+];
+
 // 🔒 Pronoun-style queries (refer to previous message subject)
-// These patterns match phrases that DON'T contain a specific subject name
-// but reference something previously discussed.
 const PRONOUN_PATTERNS = [
-    // "give me the notes", "ok give me notes", "send the link"
     /\b(give|send|share|provide|do|please)\s+(me\s+)?(the\s+|wo\s+|us\s+|that\s+)?(notes?|material|link|pdf|file|stuff)/i,
-    // "the notes", "that link"
     /^(the|wo|woh|us|that)\s+(notes?|material|link|pdf|file)/i,
-    // "send it", "share it", "bhejo it"
     /\b(send|share|give|bhejo|bhej do|do na)\s+(it|wo|usko|that)/i,
-    // Standalone Hindi requests without subject
     /^(bhej\s*do|bhejo|wo bhejo|usko bhejo|do na|de do|share kar|share karo)$/i,
-    // Just "it" or "wo" alone
     /^(it|wo|woh|usko)$/i,
 ];
 
@@ -107,6 +125,31 @@ function stripInternalLeaks(text: string): string {
 function isPronounQuery(messageText: string): boolean {
     const trimmed = messageText.trim();
     return PRONOUN_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
+/**
+ * Detect if query is OUT OF SCOPE (career advice, exam tips, non-product).
+ * These should NEVER be answered by LLM — too risky for hallucination.
+ *
+ * 🔒 IMPORTANT: If the message matches an APPROVED subject (like "physiology"),
+ * it's NOT out-of-scope even if it contains a trigger word.
+ */
+function isOutOfScope(messageText: string): boolean {
+    // 🛡️ FIRST: Check if it's a valid subject request — if yes, NOT out of scope
+    const subjectCheck = validateSubjectRequest(messageText);
+    if (subjectCheck.status === "MATCHED") {
+        return false; // It's an approved subject, never out-of-scope
+    }
+
+    // 🔍 THEN: Check if it matches OOS patterns
+    return OUT_OF_SCOPE_PATTERNS.some(pattern => pattern.test(messageText));
+}
+
+/**
+ * Detect if query is asking about pricing/cost.
+ */
+function isPricingQuery(messageText: string): boolean {
+    return PRICING_PATTERNS.some(pattern => pattern.test(messageText));
 }
 
 /**
@@ -210,6 +253,18 @@ export async function generateAutoResponse(
             return await sendAndStore(fromNumber, toNumber, ackReply, messageId, auth_token, origin);
         }
 
+        // 🎯 OUT-OF-SCOPE SHORTCUT — career/exam/non-product queries
+        // 🔒 CRITICAL: Bypass LLM entirely to prevent hallucination
+        if (isOutOfScope(messageText)) {
+            console.log(`🚫 Out-of-scope query detected — using hardcoded redirect (no LLM)`);
+            // Detect language for the redirect
+            const isEnglish = /^[a-zA-Z\s.,!?'"0-9-]+$/.test(messageText) && !/[ा-ौ]/u.test(messageText);
+            const offTopicReply = isEnglish
+                ? "Sorry, I'm not the right assistant for that. 😊 I'm here to help you with Medi Study Go's MBBS & BDS study materials. Which subject do you need notes for?"
+                : "Sorry, ye topic mere domain me nahi hai 😊 Main Medi Study Go ke MBBS aur BDS study materials me aapki help kar sakta hoon. Kaunsa subject ya bundle chahiye?";
+            return await sendAndStore(fromNumber, toNumber, offTopicReply, messageId, auth_token, origin);
+        }
+
         // ─── 4. Get conversation history (only for non-greeting flows) ──
         const { data: historyRows } = await supabase
             .from("whatsapp_messages")
@@ -233,14 +288,22 @@ export async function generateAutoResponse(
         const validation = validateSubjectRequest(messageText);
         const isPronoun = isPronounQuery(messageText);
         const multiVersionSubject = detectMultiVersionAmbiguity(messageText);
+        const isPricing = isPricingQuery(messageText);
 
         console.log(`🔍 Validation:`, validation);
-        console.log(`🔍 Pronoun query: ${isPronoun} | Multi-version: ${multiVersionSubject}`);
+        console.log(`🔍 Pronoun: ${isPronoun} | Multi-ver: ${multiVersionSubject} | Pricing: ${isPricing}`);
 
-        // ─── 6. Build retrieval query (uses history for pronouns) ──
-        const retrievalQuery = buildRetrievalQuery(messageText, history);
+        // ─── 6. Build retrieval query ──
+        let retrievalQuery = buildRetrievalQuery(messageText, history);
+
+        // 🎯 Pricing boost: append pricing keywords for better chunk match
+        if (isPricing) {
+            retrievalQuery = `${retrievalQuery} price cost rupees coupon NEW10 discount bundle`;
+            console.log(`💰 Pricing query — boosted retrieval`);
+        }
+
         if (retrievalQuery !== messageText) {
-            console.log(`🔄 Context-aware query: "${retrievalQuery.slice(0, 80)}..."`);
+            console.log(`🔄 Boosted query: "${retrievalQuery.slice(0, 80)}..."`);
         }
 
         // ─── 7. Embed + retrieve ─────────────────────────────────
@@ -254,6 +317,24 @@ export async function generateAutoResponse(
         );
         const matches = allMatches.filter(m => m.similarity > 0.30);
         const contextText = matches.map(m => m.chunk).join("\n\n");
+
+        // 🛡️ EMPTY CONTEXT GUARD — anti-hallucination
+        // If we have NO context AND no specific intent matched, refuse to answer from general knowledge
+        const hasNoContext = contextText.length < 50 || matches.length === 0;
+        const hasNoSpecificIntent =
+            validation.status === "GENERAL_QUERY" &&
+            !isPronoun &&
+            !multiVersionSubject &&
+            !isPricing;
+
+        if (hasNoContext && hasNoSpecificIntent) {
+            console.log(`🛡️ Empty context guard triggered — refusing to hallucinate`);
+            const isEnglish = /^[a-zA-Z\s.,!?'"0-9-]+$/.test(messageText) && !/[ा-ौ]/u.test(messageText);
+            const noContextReply = isEnglish
+                ? "Sorry, I don't have info on that. 😊 I'm here to help with Medi Study Go's MBBS & BDS study materials, prices and bundles. Which subject can I help you with?"
+                : "Sorry, iske baare me mere paas info nahi hai 😊 Main Medi Study Go ke study materials, pricing aur bundles me help kar sakta hoon. Kaunsa subject chahiye?";
+            return await sendAndStore(fromNumber, toNumber, noContextReply, messageId, auth_token, origin);
+        }
 
         // ─── 8. Build dynamic intent hint ────────────────────────
         let intentHint = "";
