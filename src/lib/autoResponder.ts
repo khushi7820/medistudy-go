@@ -164,7 +164,7 @@ export async function generateAutoResponse(
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found in the documents. If this is a greeting, reply politely. If it's a question, inform the user you don't have that info."}`
+                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting, you MUST reply exactly with: '😊 Hi! Main Medi Study Go assistant hoon. Aapko kis subject ya material me help chahiye? Humare paas MBBS, BDS, aur NEET MDS ke liye alag-alag subjects ke liye materials hain. Bataiye, aapko kis cheez mein help chahiye?'"}`
             },
             ...history.slice(-10), // Include last 10 messages (5 pairs) for context
             { role: "user" as const, content: messageText }
