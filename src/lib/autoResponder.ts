@@ -103,12 +103,18 @@ export async function generateAutoResponse(
 
         const contextText = matches.map((m) => m.chunk).join("\n\n");
 
-        // 3.5 Detect Small Talk / Greetings / Acknowledgments
+        // 3.5 Detect Small Talk / Greetings / Acknowledgments / Material Requests
         const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy)$/i.test(messageText.trim().toLowerCase());
         const isAcknowledgment = /^(ok|okkk|okay|okayy|kk|k|thanks|thank you|thx|tks)$/i.test(messageText.trim().toLowerCase());
+        const isMaterialRequest = /pdf|material|notes|link|bundle|drive|source|bhejo|chahiye|send|give/i.test(messageText.toLowerCase());
         
         // If it's a greeting or a simple "ok", we clear the context to avoid random links
         const finalContext = (isGreeting || isAcknowledgment) ? "" : contextText;
+
+        // Add material intent to system prompt if detected
+        const intentInstruction = isMaterialRequest 
+            ? "USER IS ASKING FOR MATERIAL. Use ZONE 2 format: 📚 Study Material Found..." 
+            : "USER IS NOT ASKING FOR MATERIAL. If they are just introducing themselves or asking general questions, answer politely from ZONE 1 or just acknowledge.";
 
         // 4. Get conversation history for this phone number
         const { data: historyRows } = await supabase
@@ -172,7 +178,7 @@ export async function generateAutoResponse(
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting, reply with the standard Medi Study Go welcome message. If this is an acknowledgment (like ok, k, thanks), reply with: 'Theek hai! Kya aapko kisi aur subject ke notes ya pricing ke baare mein jaanna hai?'"}`
+                content: `${systemPrompt}\n\nINTENT GUIDANCE: ${intentInstruction}\n\nCONTEXT:\n${finalContext || "No relevant context found. If this is a greeting or introduction, answer politely. If it is a material request, use the fallback: 'Is specific material ka link abhi hamare available directory me nahi mila. Aap kisi aur subject ka naam bhej sakte hain 😊'"}`
             },
             ...history.slice(-10), // Include last 10 messages (5 pairs) for context
             { role: "user" as const, content: messageText }
