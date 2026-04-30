@@ -137,7 +137,7 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `If the user asks for PDF, notes, material, or COST/PRICE:\n` +
             `1. Search CONTEXT for the requested subject or bundle price.\n` +
-            `2. You MUST provide the exact GOOGLE DRIVE LINK and EXACT PRICE if present in CONTEXT.\n" +
+            `2. You MUST provide the exact GOOGLE DRIVE LINK and EXACT PRICE if present in CONTEXT.\n` +
             `3. Explain briefly why you are providing it (e.g., "Humare paas iske liye basics notes hain...").\n` +
             `4. Format: Subject/Bundle Name - Download Link: [URL] - Price: [Cost]\n` +
             `5. Answer ONLY the specific subject or price asked. No long summaries.\n\n` +
