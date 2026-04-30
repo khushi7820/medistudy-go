@@ -72,15 +72,10 @@ export async function generateAutoResponse(
             };
         }
 
-        // 1.8. Material Request Detection & Query Optimization
-        const isMaterialRequest = /pdf|material|notes|link|bundle|drive|study material/i.test(messageText.toLowerCase());
-        
-        // If user asks for material, we explicitly add "link" to the search to pull chunks containing URLs
-        const retrievalQuery = isMaterialRequest 
-            ? `${messageText} Google Drive Link` 
-            : messageText;
+        // 1.8. Search Strategy (Optimized)
+        const retrievalQuery = messageText;
 
-        console.log(`Retrieval Query: "${retrievalQuery}" (Material Request: ${isMaterialRequest})`);
+        console.log(`Retrieval Query: "${retrievalQuery}"`);
 
         // 2. Embed the query
         const queryEmbedding = await embedText(retrievalQuery);
@@ -96,11 +91,11 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            4 // Reduced from 8 to 4 to prevent overwhelming the AI with too much data
+            6 // Balanced at 6 chunks
         );
 
         // Filter by similarity threshold
-        const matches = allMatches.filter(m => m.similarity > 0.45); // Slightly higher threshold
+        const matches = allMatches.filter(m => m.similarity > 0.35); // Lowered to 0.35 for better matching
 
         if (matches.length === 0) {
             console.log("No relevant chunks found above threshold");
@@ -110,7 +105,7 @@ export async function generateAutoResponse(
 
         // 3.5 Detect Small Talk / Greetings
         const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|)$/i.test(messageText.trim().toLowerCase());
-
+        
         // If it's just a greeting, we can clear the context to avoid irrelevant answers
         const finalContext = isGreeting ? "" : contextText;
 
