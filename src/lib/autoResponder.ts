@@ -91,7 +91,7 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            4 // Reduced from 6 to 4 to save tokens
+            8 // Increased to 8 for better accuracy
         );
 
         // Filter by similarity threshold
