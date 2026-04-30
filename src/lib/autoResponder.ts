@@ -142,12 +142,13 @@ export async function generateAutoResponse(
         const documentRules =
             `MASTER WORKFLOW GUIDE (STRICT PRECISION):\n\n` +
             `PHASE 1: INTENT DETECTION\n` +
+            `- If user says hi/hello/hey/hy: You MUST reply with the FULL GREETING text provided below. Do NOT send only an emoji.\n` +
             `- If user asks for one thing, answer ONLY that thing. Do NOT list other subjects.\n\n` +
             `PHASE 2: KNOWLEDGE RETRIEVAL (STRICT)\n` +
             `- Use ONLY provided CONTEXT. Never create fake links.\n\n` +
             `PHASE 3: RESPONSE FORMATTING (CLEAN TEXT ONLY)\n` +
             `- DO NOT USE STARS (*), HASHES (#), OR ANY MARKDOWN.\n` +
-            `- Use ONLY plain text and Emojis. Keep it 2-3 short sentences max.\n\n` +
+            `- Use plain text and Emojis. Full sentences only.\n\n` +
             `MATERIAL FORMAT (CLEAN):\n` +
             `Study Material Found\n` +
             `Subject: [Name]\n` +
