@@ -147,10 +147,10 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `RESPONSE STYLE & FORMATTING (IMPORTANT)\n` +
             `==================================================\n` +
-            `- KEEP RESPONSES BRIEF: 3 to 5 lines maximum.\n` +
-            `- DO NOT cut sentences; explain clearly but very concisely.\n` +
+            `- DO NOT BE ROBOTIC: Explain briefly why you are providing the link (e.g., "Humare paas NEET ke liye yeh material hai...").\n` +
+            `- KEEP IT CONCISE: Around 4 to 6 lines maximum.\n` +
             `- DO NOT USE '*' (STARS) OR '#' (HASHES).\n` +
-            `- Use plain text and line breaks.\n` +
+            `- Use plain text and line breaks for clarity.\n` +
             `- Use Hinglish/Hindi/English based on user's current message.\n` +
             `- Be professional and helpful.`;
 
