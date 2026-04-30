@@ -16,8 +16,8 @@ const SUBJECT_CATALOG = [
     // ─── BDS FIRST YEAR ─────────────────────────────────────
     { canonical: "PHARMACOLOGY", aliases: ["pharmacology", "pharmacy student", "pharma notes", "pharmac", "pharm"] },
 
-    { canonical: "Product profile for Neuro_com", aliases: ["neuro", "neurology", "neuro material", "neurocom"] },
-    { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy"] },
+    { canonical: "Product profile for Neuro_com", aliases: ["neuro", "neuro material", "neurocom"] },
+    { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy", "neurology", "neurologist"] },
 
     { canonical: "MICRO", aliases: ["micro", "microbio", "microbiology"] },
     { canonical: "BIOCHEMISTRY", aliases: ["biochem", "bio chem", "biochemistry"] },
@@ -64,7 +64,7 @@ const SUBJECT_CATALOG = [
  * We block "general radiology" / "diagnostic radiology" instead.
  */
 const NOT_IN_CATALOG = [
-    "neurology", "neurologist", "cardiology", "cardiologist",
+    "cardiology", "cardiologist",
     "dermatology", "dermatologist", "ent specialist",
     "pediatrics", "paediatrics", "pediatrician",
     "gynaecology", "gynecology", "gynaecologist",
