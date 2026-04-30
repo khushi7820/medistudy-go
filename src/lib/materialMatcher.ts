@@ -14,52 +14,45 @@
  */
 const SUBJECT_CATALOG = [
     // ─── BDS FIRST YEAR ─────────────────────────────────────
-    { canonical: "Anatomy (Head & Neck)", aliases: ["head and neck", "head & neck", "h&n", "anatomy head neck"] },
-    { canonical: "Physiology", aliases: ["physiology", "physio", "physiology bds"] },
-    { canonical: "Biochemistry", aliases: ["biochemistry", "biochem", "bio chem"] },
-    { canonical: "Dental Anatomy & Histology", aliases: ["dadh", "dental anatomy", "dental histology", "dental anatomy histology"] },
-    { canonical: "Osteology (BDS)", aliases: ["osteology bds", "osteo bds", "bds osteology"] },
-    { canonical: "General Anatomy (BDS)", aliases: ["general anatomy bds", "ga bds", "bds general anatomy"] },
+    { canonical: "PHARMACOLOGY", aliases: ["pharmacy", "pharma", "pharmac", "pharmacology", "pharm"] },
 
-    // ─── BDS SECOND YEAR ────────────────────────────────────
-    { canonical: "General Pathology", aliases: ["general pathology", "g path", "gpath", "pathology", "patho"] },
-    { canonical: "Microbiology", aliases: ["microbiology", "micro", "microbio"] },
-    { canonical: "Pharmacology", aliases: ["pharmacology", "pharma", "pharmac", "pharmaco", "pharmacy"] },
-    { canonical: "Dental Materials", aliases: ["dental materials", "dm", "dental material"] },
+    { canonical: "Product profile for Neuro_com", aliases: ["neuro", "neurology", "neuro material", "neurocom"] },
+    { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy"] },
 
-    // ─── BDS THIRD YEAR ─────────────────────────────────────
-    { canonical: "General Medicine", aliases: ["general medicine", "gen medicine", "gm", "medicine"] },
-    { canonical: "General Surgery", aliases: ["general surgery", "gen surgery", "gs", "surgery"] },
-    { canonical: "Oral Pathology", aliases: ["oral pathology", "o path", "opath", "oral patho"] },
+    { canonical: "MICRO", aliases: ["micro", "microbio", "microbiology"] },
+    { canonical: "BIOCHEMISTRY", aliases: ["biochem", "bio chem", "biochemistry"] },
+    { canonical: "PHYSIOLOGY", aliases: ["physio", "physiology"] },
 
-    // ─── BDS FINAL YEAR ─────────────────────────────────────
-    { canonical: "Periodontology", aliases: ["periodontology", "periodontics", "perio"] },
-    { canonical: "Orthodontics", aliases: ["orthodontics", "ortho"] },
-    { canonical: "Endodontics", aliases: ["endodontics", "endo"] },
-    { canonical: "Conservative Dentistry", aliases: ["conservative dentistry", "conservative", "cons"] },
-    { canonical: "Oral Surgery", aliases: ["oral surgery", "os"] },
-    { canonical: "Prosthodontics", aliases: ["prosthodontics", "prostho", "prosth"] },
-    { canonical: "Oral Medicine", aliases: ["oral medicine", "oral med"] },
-    { canonical: "Oral Radiology", aliases: ["oral radiology", "oral radio"] },
-    { canonical: "Pedodontics", aliases: ["pedodontics", "pedo"] },
-    { canonical: "Public Health Dentistry", aliases: ["public health dentistry", "phd", "phd dentistry"] },
+    { canonical: "Anat Bundle", aliases: ["anat", "anatomy", "anat bundle", "anatomy bundle", "full anatomy"] },
+    { canonical: "Anat bundle + GA + Osteo", aliases: ["anatomy ga osteo", "anat ga osteo"] },
+    { canonical: "HEAD AND NECK", aliases: ["head and neck", "head neck"] },
+    { canonical: "OSTEO SAMPLE", aliases: ["osteo", "osteology"] },
+    { canonical: "Abdomen Thorax and Pelvis", aliases: ["abdomen", "thorax", "pelvis"] },
 
-    // ─── MBBS FIRST YEAR ────────────────────────────────────
-    { canonical: "Upper Limb", aliases: ["upper limb", "ul"] },
-    { canonical: "Lower Limb", aliases: ["lower limb", "ll"] },
-    { canonical: "Abdomen, Thorax & Pelvis", aliases: ["abdomen", "thorax", "pelvis", "abdomen thorax", "atp"] },
-    { canonical: "General Anatomy (MBBS)", aliases: ["general anatomy mbbs", "ga mbbs"] },
-    { canonical: "Osteology (MBBS)", aliases: ["osteology mbbs", "osteo mbbs", "osteology"] },
-    { canonical: "Neuroanatomy", aliases: ["neuroanatomy", "neuro anatomy", "neuro-anatomy"] },
-    { canonical: "Physiology (MBBS)", aliases: ["physiology mbbs", "physio mbbs"] },
-    { canonical: "Biochemistry (MBBS)", aliases: ["biochemistry mbbs", "biochem mbbs"] },
+    { canonical: "G PATH", aliases: ["g path", "gpath", "general pathology", "pathology", "patho"] },
+    { canonical: "G.Path + Micro", aliases: ["path micro", "gpath micro"] },
+    { canonical: "Product profile - O path", aliases: ["oral pathology", "opath", "o path"] },
 
-    // ─── EXAM PREP ──────────────────────────────────────────
-    { canonical: "NEET MDS", aliases: ["neet mds", "neetmds", "mds prep"] },
-    { canonical: "NEET MDS Part 1", aliases: ["neet mds part 1", "neet mds 1", "mds part 1"] },
-    { canonical: "NEET MDS Part 2", aliases: ["neet mds part 2", "neet mds 2", "mds part 2"] },
-    { canonical: "NEET MDS Part 3", aliases: ["neet mds part 3", "neet mds 3", "mds part 3"] },
+    { canonical: "DM", aliases: ["dm", "dental material", "dental materials"] },
+    { canonical: "DADH", aliases: ["dadh", "dental anatomy", "dental histology"] },
+
+    { canonical: "Gen medicine", aliases: ["general medicine", "gen medicine", "gm"] },
+    { canonical: "Gen Surgery", aliases: ["general surgery", "gen surgery", "gs"] },
+
+    { canonical: "ENDO", aliases: ["endo", "endodontics"] },
+    { canonical: "CONS", aliases: ["cons", "conservative", "conservative dentistry"] },
+    { canonical: "PROSTHO", aliases: ["prostho", "prosthodontics"] },
+    { canonical: "PERIO", aliases: ["perio", "periodontics"] },
+    { canonical: "ORTHO", aliases: ["ortho", "orthodontics"] },
+    { canonical: "OS", aliases: ["os", "oral surgery"] },
+    { canonical: "oral medicine", aliases: ["oral medicine", "oral med"] },
+    { canonical: "ORAL RADIO", aliases: ["oral radio", "oral radiology"] },
+
+    { canonical: "NEET MDS", aliases: ["neet mds", "mds"] },
+    { canonical: "First Year BDS", aliases: ["first year bds", "bds first year"] }
 ];
+
+
 
 /**
  * NON-EXISTENT SUBJECTS — explicitly blocked

@@ -332,8 +332,15 @@ export async function generateAutoResponse(
         console.log(`🔍 Validation:`, validation);
         console.log(`🔍 Pronoun: ${isPronoun} | Multi-ver: ${multiVersionSubject} | Pricing: ${isPricing}`);
 
+
         // ─── 6. Build retrieval query ──
         let retrievalQuery = buildRetrievalQuery(messageText, history);
+
+        // IMPORTANT FIX: if subject matcher found canonical subject, force exact retrieval on that
+        if (validation.status === "MATCHED") {
+            retrievalQuery = validation.matchedSubject;
+            console.log(`🎯 Canonical subject retrieval forced: ${retrievalQuery} `);
+        }
 
         // 🎯 Pricing boost: append pricing keywords for better chunk match
         if (isPricing) {
@@ -344,6 +351,7 @@ export async function generateAutoResponse(
         if (retrievalQuery !== messageText) {
             console.log(`🔄 Boosted query: "${retrievalQuery.slice(0, 80)}..."`);
         }
+
 
         // ─── 7. Embed + retrieve ─────────────────────────────────
         const queryEmbedding = await embedText(retrievalQuery);
