@@ -145,9 +145,11 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `If user asks for PDF, material, notes, or file:\n` +
             `1. Match with approved catalog.\n` +
-            `2. Reply ONLY with exact matching material names.\n` +
-            `3. Format: 📚 *Available Study Material:* • [Exact Material Name].\n` +
-            `4. Do NOT provide Google Drive links here. Ask user if they want details.\n\n` +
+            `2. Return the exact GOOGLE DRIVE LINK from context for each matching material.\n` +
+            `3. Format: 📚 *Study Material Found*\n` +
+            `*Material Name:* [Exact Subject Name]\n` +
+            `🔗 *Download Link:* [Exact Google Drive Link from context]\n\n` +
+            `If not found: "Sorry, is topic ka material abhi hamare catalog me nahi hai. 😊"\n\n` +
             `==================================================\n` +
             `PRODUCT / PACKAGE QUESTIONS\n` +
             `==================================================\n` +
