@@ -142,13 +142,15 @@ export async function generateAutoResponse(
             `If the user asks for PDF, material, or study notes:\n` +
             `1. You MUST provide the exact GOOGLE DRIVE LINK (URL) if it exists in the CONTEXT.\n` +
             `2. DO NOT just list the subject names; the link is the most important part.\n` +
-            `3. Format: *Subject Name*\nDownload Link: [URL]\n` +
+            `3. Format: Subject Name\nDownload Link: [URL]\n` +
             `4. If multiple links exist for different parts, list them clearly.\n\n` +
             `==================================================\n` +
-            `RESPONSE STYLE\n` +
+            `RESPONSE STYLE & FORMATTING (IMPORTANT)\n` +
             `==================================================\n` +
+            `- DO NOT USE '*' (STARS) OR '#' (HASHES) for bolding or headers.\n` +
+            `- Use plain text only for subject names and titles.\n` +
             `- Use Hinglish/Hindi/English based on user's current message.\n` +
-            `- Use bold headings and clean formatting.\n` +
+            `- Use line breaks (new lines) to separate sections.\n` +
             `- Be professional and helpful.`;
 
         let systemPrompt: string;
