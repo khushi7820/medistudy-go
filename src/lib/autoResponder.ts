@@ -72,10 +72,15 @@ export async function generateAutoResponse(
             };
         }
 
-        // 1.8. Search Strategy (Optimized for current PDF)
-        const retrievalQuery = messageText;
+        // 1.8. Material Request Detection & Query Optimization
+        const isMaterialRequest = /pdf|material|notes|link|bundle|drive|study material/i.test(messageText.toLowerCase());
+        
+        // If user asks for material, we explicitly add "link" to the search to pull chunks containing URLs
+        const retrievalQuery = isMaterialRequest 
+            ? `${messageText} Google Drive Link` 
+            : messageText;
 
-        console.log(`Retrieval Query: "${retrievalQuery}"`);
+        console.log(`Retrieval Query: "${retrievalQuery}" (Material Request: ${isMaterialRequest})`);
 
         // 2. Embed the query
         const queryEmbedding = await embedText(retrievalQuery);
@@ -91,12 +96,11 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding,
             fileIds,
-            5
+            8 // Increased from 5 to 8 to get more potential links
         );
 
-        // Filter by similarity threshold (e.g., 0.5 or 50% match)
-        // This prevents "hey" from matching random chunks like "Biochemistry"
-        const matches = allMatches.filter(m => m.similarity > 0.5);
+        // Filter by similarity threshold
+        const matches = allMatches.filter(m => m.similarity > 0.4); // Slightly lower threshold
 
         if (matches.length === 0) {
             console.log("No relevant chunks found above threshold");
@@ -105,9 +109,9 @@ export async function generateAutoResponse(
         const contextText = matches.map((m) => m.chunk).join("\n\n");
 
         // 3.5 Detect Small Talk / Greetings
-        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|)$/i.test(messageText.trim());
+        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|)$/i.test(messageText.trim().toLowerCase());
 
-        // If it's just a greeting, we can clear the context to avoid "Biochemistry" forced answers
+        // If it's just a greeting, we can clear the context to avoid irrelevant answers
         const finalContext = isGreeting ? "" : contextText;
 
         // 4. Get conversation history for this phone number
@@ -131,22 +135,21 @@ export async function generateAutoResponse(
             `==================================================\n` +
             `STRICT KNOWLEDGE RULE\n` +
             `==================================================\n` +
-            `You must answer ONLY from the provided CONTEXT. Do not guess or assume.\n` +
-            `If information is missing, say: "Is topic ka exact material database me available nahi mila."\n\n` +
+            `Answer ONLY from the provided CONTEXT. If info is missing, say you don't have it.\n\n` +
             `==================================================\n` +
-            `MATERIAL / PDF / LINK REQUEST RULE (VERY STRICT)\n` +
+            `MATERIAL / LINK REQUEST RULE (CRITICAL)\n` +
             `==================================================\n` +
-            `If the user asks for PDF, notes, material, or drive link:\n` +
-            `1. Search CONTEXT for the requested subject or material.\n` +
-            `2. MUST provide the exact Google Drive Link present in CONTEXT.\n` +
-            `3. If no matching material or link found, reply: "Is particular subject ka exact PDF/material mere available database me nahi mila."\n` +
-            `4. Never provide wrong or nearest guess links.\n\n` +
+            `If the user asks for PDF, material, or study notes:\n` +
+            `1. You MUST provide the exact GOOGLE DRIVE LINK (URL) if it exists in the CONTEXT.\n` +
+            `2. DO NOT just list the subject names; the link is the most important part.\n` +
+            `3. Format: *Subject Name*\nDownload Link: [URL]\n` +
+            `4. If multiple links exist for different parts, list them clearly.\n\n` +
             `==================================================\n` +
             `RESPONSE STYLE\n` +
             `==================================================\n` +
-            `- Reply in the same language style (English/Hinglish/Hindi).\n` +
-            `- Use bold headings and bullet points.\n` +
-            `- Be professional and helpful as Medi Study Go Assistant.`;
+            `- Use Hinglish/Hindi/English based on user's current message.\n` +
+            `- Use bold headings and clean formatting.\n` +
+            `- Be professional and helpful.`;
 
         let systemPrompt: string;
         if (customSystemPrompt) {
