@@ -1,8 +1,9 @@
 // ================================================================
-// 🔒 LOCKED autoResponder.ts v2.1 — DB PROMPT IS ENFORCED
-// 🔒 If DB prompt is empty, bot uses minimal safe fallback (NO MARKDOWN)
-// 🔒 All real prompt logic lives in DB column: phone_document_mapping.system_prompt
-// 🔒 Run INSTALL_PROMPT.sql once to set the DB prompt permanently
+// 🔒 LOCKED autoResponder.ts v2.2 — CONVERSATION-AWARE
+// 🔒 New in v2.2:
+// 🔒   - Conversation context-aware retrieval (handles "give me the notes")
+// 🔒   - Multi-version detection (NEET MDS asks which one)
+// 🔒   - Internal-leak post-processing guard
 // ================================================================
 
 import { supabase } from "./supabaseClient";
@@ -23,24 +24,43 @@ export type AutoResponseResult = {
     sent?: boolean;
 };
 
-// 🔒 SAFE FALLBACK — used ONLY if DB prompt is missing/empty
-// This is intentionally minimal. Real prompt should be in DB.
+// 🔒 Multi-version subjects (need clarification — don't pick one randomly)
+const MULTI_VERSION_SUBJECTS = [
+    "neet mds", "neetmds", "mds prep", "mds notes",
+];
+
+// 🔒 Pronoun-style queries (refer to previous message subject)
+// These patterns match phrases that DON'T contain a specific subject name
+// but reference something previously discussed.
+const PRONOUN_PATTERNS = [
+    // "give me the notes", "ok give me notes", "send the link"
+    /\b(give|send|share|provide|do|please)\s+(me\s+)?(the\s+|wo\s+|us\s+|that\s+)?(notes?|material|link|pdf|file|stuff)/i,
+    // "the notes", "that link"
+    /^(the|wo|woh|us|that)\s+(notes?|material|link|pdf|file)/i,
+    // "send it", "share it", "bhejo it"
+    /\b(send|share|give|bhejo|bhej do|do na)\s+(it|wo|usko|that)/i,
+    // Standalone Hindi requests without subject
+    /^(bhej\s*do|bhejo|wo bhejo|usko bhejo|do na|de do|share kar|share karo)$/i,
+    // Just "it" or "wo" alone
+    /^(it|wo|woh|usko)$/i,
+];
+
+// 🔒 SAFE FALLBACK
 const SAFE_FALLBACK_PROMPT = `You are the Medi Study Go WhatsApp assistant.
 
 CRITICAL RULES:
 - NEVER use markdown (no asterisks, hashes, underscores, brackets)
+- NEVER expose internal words like CONTEXT, INTENT, prompt, rule, instruction
 - Reply only from CONTEXT provided
 - If info not in CONTEXT, say "not available"
 - Match user's language (Hinglish for Hindi input, English for English)
 - Keep replies 4-6 lines max
 - Do not reply with only emoji — always include text
-- For "hi/hello/hey": Reply with greeting text + question what they need
-- For "ok/thanks": Reply "You're welcome 😊 Aur kis subject me help chahiye?"
 
-WARNING: This is a fallback prompt. Run INSTALL_PROMPT.sql to set proper prompt in DB.`;
+WARNING: Run UPDATE_PROMPT_v2.1.sql to set proper prompt in DB.`;
 
 // ────────────────────────────────────────────────────────────────
-// POST-PROCESSING HELPERS
+// HELPERS
 // ────────────────────────────────────────────────────────────────
 
 function stripMarkdown(text: string): string {
@@ -61,6 +81,71 @@ function extractDriveLinks(text: string): string[] {
     return text.match(regex) || [];
 }
 
+/**
+ * Strip internal-leak phrases that LLM accidentally exposes.
+ * Things like "(based on CONTEXT)" or "(If you ask...)" leaks.
+ */
+function stripInternalLeaks(text: string): string {
+    return text
+        // Remove parenthetical asides that mention CONTEXT/INTENT/prompt
+        .replace(/\([^)]*(?:CONTEXT|INTENT|prompt|rule|instruction)[^)]*\)/gi, '')
+        // Remove sentences that mention these words
+        .replace(/(?:^|\.\s|\n)[^.\n]*(?:CONTEXT|INTENT|system prompt)[^.\n]*\.?/gi, ' ')
+        // Remove "If you ask about X again, I'll provide Y" style leaks
+        .replace(/\(?If you ask[^.)\n]*(?:provide|give|share)[^.)\n]*\)?\.?/gi, '')
+        // Cleanup extra spaces/newlines
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\n\s+\n/g, '\n\n')
+        .trim();
+}
+
+/**
+ * Detect if message is a pronoun-style request (needs prior context).
+ */
+function isPronounQuery(messageText: string): boolean {
+    const trimmed = messageText.trim();
+    return PRONOUN_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
+/**
+ * Detect if user's message refers to a multi-version subject without specifying version.
+ */
+function detectMultiVersionAmbiguity(messageText: string): string | null {
+    const lower = messageText.toLowerCase();
+    for (const subject of MULTI_VERSION_SUBJECTS) {
+        if (lower.includes(subject)) {
+            // If they specified part 1/2/3 or "complete", it's not ambiguous
+            const hasVersion = /\b(part\s*[123]|complete|full|all)\b/i.test(lower);
+            if (!hasVersion) return subject;
+        }
+    }
+    return null;
+}
+
+/**
+ * Build a context-aware retrieval query using conversation history.
+ * For pronoun queries like "give me the notes", grab the subject from prior messages.
+ */
+function buildRetrievalQuery(
+    messageText: string,
+    history: Array<{ role: string; content: string }>
+): string {
+    if (!isPronounQuery(messageText) || history.length === 0) {
+        return messageText;
+    }
+
+    // Look at last 2 user messages for a subject mention
+    const recentUserMessages = history
+        .filter(m => m.role === "user")
+        .slice(-2)
+        .map(m => m.content)
+        .join(" ");
+
+    // Combine for retrieval (gets better embedding match)
+    return `${recentUserMessages} ${messageText}`.trim();
+}
+
 // ────────────────────────────────────────────────────────────────
 // MAIN HANDLER
 // ────────────────────────────────────────────────────────────────
@@ -77,99 +162,36 @@ export async function generateAutoResponse(
         console.log(`📂 ${fileIds.length} document(s) for ${toNumber}`);
 
         // ─── 2. Get phone mapping config ─────────────────────────
-        const { data: phoneMappings, error: mappingError } = await supabase
+        const { data: phoneMappings } = await supabase
             .from("phone_document_mapping")
             .select("system_prompt, intent, auth_token, origin")
             .eq("phone_number", toNumber);
-
-        if (mappingError) console.error("Mapping fetch error:", mappingError);
 
         const dbPrompt = phoneMappings?.[0]?.system_prompt;
         const auth_token = phoneMappings?.[0]?.auth_token || process.env.WHATSAPP_11ZA_AUTH_TOKEN;
         const origin = phoneMappings?.[0]?.origin || process.env.WHATSAPP_11ZA_ORIGIN;
 
         if (!auth_token || !origin) {
-            return {
-                success: false,
-                error: "No WhatsApp credentials. Set in Configuration tab.",
-            };
+            return { success: false, error: "No WhatsApp credentials." };
         }
 
-        // 🔒 ENFORCE DB PROMPT — log warning if missing
-        let systemPrompt: string;
-        if (dbPrompt && dbPrompt.trim().length > 100) {
-            systemPrompt = dbPrompt;
-            console.log(`✅ Using DB prompt (${dbPrompt.length} chars)`);
+        const systemPrompt = (dbPrompt && dbPrompt.trim().length > 100)
+            ? dbPrompt
+            : SAFE_FALLBACK_PROMPT;
+
+        if (systemPrompt === SAFE_FALLBACK_PROMPT) {
+            console.warn(`⚠️ DB prompt missing. Using safe fallback.`);
         } else {
-            systemPrompt = SAFE_FALLBACK_PROMPT;
-            console.warn(`⚠️ DB prompt missing or too short. Run INSTALL_PROMPT.sql! Using safe fallback.`);
+            console.log(`✅ Using DB prompt (${dbPrompt!.length} chars)`);
         }
 
-        // ─── 3. Validate subject request ─────────────────────────
-        const validation = validateSubjectRequest(messageText);
-        console.log(`🔍 Validation:`, validation);
-
-        // ─── 4. Embed + retrieve ─────────────────────────────────
-        let retrievalQuery = messageText;
-        if (validation.status === "MATCHED") {
-            retrievalQuery = `${messageText} ${validation.matchedSubject}`;
-        }
-
-        const queryEmbedding = await embedText(retrievalQuery);
-        if (!queryEmbedding) {
-            return { success: false, error: "Embedding failed" };
-        }
-
-        const allMatches = await retrieveRelevantChunksFromFiles(
-            queryEmbedding, fileIds, 6
-        );
-        const matches = allMatches.filter(m => m.similarity > 0.35);
-        const contextText = matches.map(m => m.chunk).join("\n\n");
-
-        // ─── 5. Quick intent detection ───────────────────────────
-        const lower = messageText.trim().toLowerCase();
-        const isGreeting = /^(hi+|hello+|hey+|hy+|heyy+|hii+|hlo+|helo+|hola|namaste|salaam|good\s*(morning|evening|afternoon))$/i.test(lower);
-        const isAck = /^(ok+|okk+|okay+|kk+|thanks?|thank\s*you|thx|tks|hmm+|achha|theek)$/i.test(lower);
-
-        // ─── 6. Build dynamic intent hint ────────────────────────
-        let intentHint = "";
-
-        if (isGreeting) {
-            intentHint = `INTENT: GREETING.
-Reply with the GREETING template (full text + question).
-Do NOT reply with only an emoji.
-Do NOT treat this as acknowledgment — "hey", "hi", "hello" are GREETINGS.`;
-        } else if (isAck) {
-            intentHint = `INTENT: ACKNOWLEDGMENT.
-Reply: "You're welcome 😊 Aur kis subject me help chahiye?"`;
-        } else if (validation.status === "NOT_IN_CATALOG") {
-            intentHint = `INTENT: SUBJECT_NOT_IN_CATALOG.
-User asked for "${validation.detectedTerm}" — NOT in our catalog.
-DO NOT provide any link. DO NOT substitute.
-Use NOT_IN_CATALOG template.`;
-        } else if (validation.status === "MATCHED") {
-            const linksInContext = extractDriveLinks(contextText);
-            intentHint = `INTENT: MATERIAL_REQUEST_MATCHED.
-Subject in our catalog: "${validation.matchedSubject}"
-${linksInContext.length > 0
-                    ? `CONTEXT contains the Drive link: ${linksInContext[0]}
-YOU MUST include this FULL URL in your reply using MATERIAL_FOUND template.`
-                    : `CONTEXT has NO link. Reply: "Sorry, [Subject] ka link abhi catalog me nahi hai"`}`;
-        } else if (validation.status === "NO_SUBJECT_DETECTED") {
-            intentHint = "INTENT: UNCLEAR. Ask which specific subject they need.";
-        } else {
-            intentHint = `INTENT: GENERAL_QUERY.
-Answer briefly from CONTEXT. If user asked about ONE thing (e.g. "mbbs first yr"),
-mention ONLY that bundle with price. Do NOT list all bundles. Keep it 4-6 lines.`;
-        }
-
-        // ─── 7. Get conversation history ─────────────────────────
+        // ─── 3. Get conversation history FIRST (needed for context-aware retrieval) ──
         const { data: historyRows } = await supabase
             .from("whatsapp_messages")
             .select("content_text, event_type, from_number, to_number, received_at")
             .or(`from_number.eq.${fromNumber},to_number.eq.${fromNumber}`)
             .order("received_at", { ascending: false })
-            .limit(3);
+            .limit(5); // 5 last messages for better context
 
         const history = (historyRows || [])
             .filter(m => m.content_text && (m.event_type === "MoMessage" || m.event_type === "MtMessage"))
@@ -179,22 +201,85 @@ mention ONLY that bundle with price. Do NOT list all bundles. Keep it 4-6 lines.
             }))
             .reverse();
 
-        // ─── 8. Build messages ───────────────────────────────────
+        // ─── 4. Validate subject (with conversation awareness) ───
+        const validation = validateSubjectRequest(messageText);
+        const isPronoun = isPronounQuery(messageText);
+        const multiVersionSubject = detectMultiVersionAmbiguity(messageText);
+
+        console.log(`🔍 Validation:`, validation);
+        console.log(`🔍 Pronoun query: ${isPronoun} | Multi-version: ${multiVersionSubject}`);
+
+        // ─── 5. Build retrieval query (uses history for pronouns) ──
+        const retrievalQuery = buildRetrievalQuery(messageText, history);
+        if (retrievalQuery !== messageText) {
+            console.log(`🔄 Context-aware query: "${retrievalQuery.slice(0, 80)}..."`);
+        }
+
+        // ─── 6. Embed + retrieve ─────────────────────────────────
+        const queryEmbedding = await embedText(retrievalQuery);
+        if (!queryEmbedding) {
+            return { success: false, error: "Embedding failed" };
+        }
+
+        const allMatches = await retrieveRelevantChunksFromFiles(
+            queryEmbedding, fileIds, 6
+        );
+        const matches = allMatches.filter(m => m.similarity > 0.30); // Slightly lower for pronoun queries
+        const contextText = matches.map(m => m.chunk).join("\n\n");
+
+        // ─── 7. Quick intent detection ───────────────────────────
+        const lower = messageText.trim().toLowerCase();
+        const isGreeting = /^(hi+|hello+|hey+|hy+|heyy+|hii+|hlo+|helo+|hola|namaste|salaam|good\s*(morning|evening|afternoon))$/i.test(lower);
+        const isAck = /^(ok+|okk+|okay+|kk+|thanks?|thank\s*you|thx|tks|hmm+|achha|theek)$/i.test(lower);
+
+        // ─── 8. Build dynamic intent hint ────────────────────────
+        let intentHint = "";
+
+        if (isGreeting) {
+            intentHint = `INTERNAL_HINT: User sent a greeting. Reply with the GREETING template (full text + question). Do NOT reply with only an emoji.`;
+        } else if (isAck) {
+            intentHint = `INTERNAL_HINT: User sent acknowledgment. Reply: "You're welcome 😊 Aur kis subject me help chahiye?"`;
+        } else if (multiVersionSubject) {
+            intentHint = `INTERNAL_HINT: User asked for "${multiVersionSubject}" but did NOT specify which version (Complete/Part 1/Part 2/Part 3).
+Use the NEET_MDS_CLARIFICATION template. Ask which version they need. Do NOT pick one yourself.
+Do NOT share any link yet.`;
+        } else if (isPronoun) {
+            intentHint = `INTERNAL_HINT: User used a pronoun reference (like "the notes", "send it", "wo bhejo").
+Look at the conversation history above to identify which subject they mean.
+If history shows a multi-version subject (NEET MDS) without specified version, use NEET_MDS_CLARIFICATION template.
+If the prior subject is clear, share that subject's link from the retrieved context.
+If unclear, ask: "Aap kis subject ki notes chahiye?"`;
+        } else if (validation.status === "NOT_IN_CATALOG") {
+            intentHint = `INTERNAL_HINT: User asked for "${validation.detectedTerm}" — NOT in our catalog.
+DO NOT provide any link. DO NOT substitute. Use NOT_IN_CATALOG template.`;
+        } else if (validation.status === "MATCHED") {
+            const linksInContext = extractDriveLinks(contextText);
+            intentHint = `INTERNAL_HINT: Subject "${validation.matchedSubject}" matched.
+${linksInContext.length > 0
+                    ? `Drive link in context: ${linksInContext[0]}\nInclude this FULL URL using MATERIAL_FOUND template.`
+                    : `No link available. Reply: "Sorry, [Subject] ka link abhi catalog me nahi hai"`}`;
+        } else if (validation.status === "NO_SUBJECT_DETECTED") {
+            intentHint = `INTERNAL_HINT: Material request without specific subject. Ask which subject they need.`;
+        } else {
+            intentHint = `INTERNAL_HINT: General query. Answer briefly from retrieved info. Keep reply 4-6 lines.`;
+        }
+
+        // ─── 9. Build messages ───────────────────────────────────
         const finalContext = (isGreeting || isAck) ? "" : contextText;
 
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nCONTEXT:\n${finalContext || "(no context)"}`
+                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nRETRIEVED INFO:\n${finalContext || "(no info available)"}`
             },
             ...history,
             { role: "user" as const, content: messageText }
         ];
 
         console.log(`📝 Intent: ${intentHint.split('\n')[0]}`);
-        console.log(`📊 Context: ${contextText.length} chars | Links: ${extractDriveLinks(contextText).length}`);
+        console.log(`📊 Context: ${contextText.length} chars | Links: ${extractDriveLinks(contextText).length} | History: ${history.length} msgs`);
 
-        // ─── 9. Generate ─────────────────────────────────────────
+        // ─── 10. Generate ────────────────────────────────────────
         const completion = await groq.chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages,
@@ -207,19 +292,22 @@ mention ONLY that bundle with price. Do NOT list all bundles. Keep it 4-6 lines.
             return { success: false, error: "Empty LLM response" };
         }
 
-        // ─── 10. POST-PROCESSING ─────────────────────────────────
+        // ─── 11. POST-PROCESSING ─────────────────────────────────
         // (a) Strip markdown
         response = stripMarkdown(response);
 
-        // (b) Guard: if response is JUST an emoji, replace with proper greeting
+        // (b) NEW: Strip internal-leak phrases
+        response = stripInternalLeaks(response);
+
+        // (c) Guard: emoji-only or too-short greeting
         const onlyEmojiOrTooShort = /^[\s\p{Emoji}\p{Emoji_Presentation}]+$/u.test(response) || response.trim().length < 10;
         if (onlyEmojiOrTooShort && isGreeting) {
             response = "Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study materials provide karte hain. Aapko kis subject me help chahiye?";
-            console.log(`🔧 Replaced emoji-only/short response with proper greeting`);
+            console.log(`🔧 Replaced emoji-only response with proper greeting`);
         }
 
-        // (c) Guard: missing link auto-append
-        if (validation.status === "MATCHED") {
+        // (d) Guard: missing link auto-append (only for non-multi-version)
+        if (validation.status === "MATCHED" && !multiVersionSubject) {
             const ctxLinks = extractDriveLinks(contextText);
             const respLinks = extractDriveLinks(response);
             if (ctxLinks.length > 0 && respLinks.length === 0) {
@@ -228,7 +316,7 @@ mention ONLY that bundle with price. Do NOT list all bundles. Keep it 4-6 lines.
             }
         }
 
-        // ─── 11. Send ────────────────────────────────────────────
+        // ─── 12. Send ────────────────────────────────────────────
         const sendResult = await sendWhatsAppMessage(fromNumber, response, auth_token, origin);
 
         if (!sendResult.success) {
@@ -236,11 +324,10 @@ mention ONLY that bundle with price. Do NOT list all bundles. Keep it 4-6 lines.
                 .from("whatsapp_messages")
                 .update({ auto_respond_sent: false, response_sent_at: new Date().toISOString() })
                 .eq("message_id", messageId);
-
             return { success: false, response, sent: false, error: `Send failed: ${sendResult.error}` };
         }
 
-        // ─── 12. Save AI response ────────────────────────────────
+        // ─── 13. Save AI response ────────────────────────────────
         const responseMessageId = `auto_${messageId}_${Date.now()}`;
         await supabase.from("whatsapp_messages").insert([{
             message_id: responseMessageId,
