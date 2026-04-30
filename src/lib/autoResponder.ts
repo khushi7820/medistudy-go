@@ -1,9 +1,10 @@
 // ================================================================
-// 🔒 LOCKED autoResponder.ts v2.2 — CONVERSATION-AWARE
-// 🔒 New in v2.2:
-// 🔒   - Conversation context-aware retrieval (handles "give me the notes")
-// 🔒   - Multi-version detection (NEET MDS asks which one)
-// 🔒   - Internal-leak post-processing guard
+// 🔒 LOCKED autoResponder.ts v2.3 — GREETING-FIRST + HISTORY BYPASS
+// 🔒 New in v2.3:
+// 🔒   - Greeting/Ack DETECTED FIRST (before history fetch)
+// 🔒   - History BYPASSED for greetings (prevents pattern repetition)
+// 🔒   - Hardcoded greeting/ack response (skip LLM entirely for these)
+// 🔒   - Better history filter (only between fromNumber ↔ toNumber)
 // ================================================================
 
 import { supabase } from "./supabaseClient";
@@ -185,13 +186,40 @@ export async function generateAutoResponse(
             console.log(`✅ Using DB prompt (${dbPrompt!.length} chars)`);
         }
 
-        // ─── 3. Get conversation history FIRST (needed for context-aware retrieval) ──
+        // ─── 3. EARLY DETECTION — Greeting/Ack FIRST (no LLM call) ──
+        // 🔒 Bypass LLM entirely for these to prevent pattern repetition from history
+        const lower = messageText.trim().toLowerCase();
+        const isGreeting = /^(hi+|hello+|hey+|hy+|heyy+|hii+|hlo+|helo+|hola|namaste|salaam|good\s*(morning|evening|afternoon))[\s!.?]*$/i.test(lower);
+        const isAck = /^(ok+|okk+|okay+|kk+|thanks?|thank\s*you|thx|tks|hmm+|achha|theek|cool|nice|got it)[\s!.?]*$/i.test(lower);
+
+        // 🎯 GREETING SHORTCUT — hardcoded reply, skip LLM completely
+        if (isGreeting) {
+            console.log(`👋 Greeting detected — using hardcoded reply (no LLM)`);
+            const isEnglishGreeting = /^(hello|hey|hi+|good\s)/i.test(lower) && !/[ा-ौ]/u.test(messageText);
+            const greetingReply = isEnglishGreeting
+                ? "Hi 😊 I'm the Medi Study Go assistant. We provide visual study bundles and materials for MBBS, BDS and NEET MDS students. Which subject do you need help with?"
+                : "Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study bundles aur materials provide karte hain. Aapko kis subject me help chahiye?";
+
+            return await sendAndStore(fromNumber, toNumber, greetingReply, messageId, auth_token, origin);
+        }
+
+        // 🎯 ACK SHORTCUT — hardcoded reply, skip LLM completely
+        if (isAck) {
+            console.log(`👍 Acknowledgment detected — using hardcoded reply (no LLM)`);
+            const ackReply = "You're welcome 😊 Aur kis subject me help chahiye?";
+            return await sendAndStore(fromNumber, toNumber, ackReply, messageId, auth_token, origin);
+        }
+
+        // ─── 4. Get conversation history (only for non-greeting flows) ──
         const { data: historyRows } = await supabase
             .from("whatsapp_messages")
             .select("content_text, event_type, from_number, to_number, received_at")
-            .or(`from_number.eq.${fromNumber},to_number.eq.${fromNumber}`)
+            .or(
+                `and(from_number.eq.${fromNumber},to_number.eq.${toNumber}),` +
+                `and(from_number.eq.${toNumber},to_number.eq.${fromNumber})`
+            )
             .order("received_at", { ascending: false })
-            .limit(5); // 5 last messages for better context
+            .limit(5);
 
         const history = (historyRows || [])
             .filter(m => m.content_text && (m.event_type === "MoMessage" || m.event_type === "MtMessage"))
@@ -201,7 +229,7 @@ export async function generateAutoResponse(
             }))
             .reverse();
 
-        // ─── 4. Validate subject (with conversation awareness) ───
+        // ─── 5. Validate subject (with conversation awareness) ───
         const validation = validateSubjectRequest(messageText);
         const isPronoun = isPronounQuery(messageText);
         const multiVersionSubject = detectMultiVersionAmbiguity(messageText);
@@ -209,13 +237,13 @@ export async function generateAutoResponse(
         console.log(`🔍 Validation:`, validation);
         console.log(`🔍 Pronoun query: ${isPronoun} | Multi-version: ${multiVersionSubject}`);
 
-        // ─── 5. Build retrieval query (uses history for pronouns) ──
+        // ─── 6. Build retrieval query (uses history for pronouns) ──
         const retrievalQuery = buildRetrievalQuery(messageText, history);
         if (retrievalQuery !== messageText) {
             console.log(`🔄 Context-aware query: "${retrievalQuery.slice(0, 80)}..."`);
         }
 
-        // ─── 6. Embed + retrieve ─────────────────────────────────
+        // ─── 7. Embed + retrieve ─────────────────────────────────
         const queryEmbedding = await embedText(retrievalQuery);
         if (!queryEmbedding) {
             return { success: false, error: "Embedding failed" };
@@ -224,22 +252,13 @@ export async function generateAutoResponse(
         const allMatches = await retrieveRelevantChunksFromFiles(
             queryEmbedding, fileIds, 6
         );
-        const matches = allMatches.filter(m => m.similarity > 0.30); // Slightly lower for pronoun queries
+        const matches = allMatches.filter(m => m.similarity > 0.30);
         const contextText = matches.map(m => m.chunk).join("\n\n");
-
-        // ─── 7. Quick intent detection ───────────────────────────
-        const lower = messageText.trim().toLowerCase();
-        const isGreeting = /^(hi+|hello+|hey+|hy+|heyy+|hii+|hlo+|helo+|hola|namaste|salaam|good\s*(morning|evening|afternoon))$/i.test(lower);
-        const isAck = /^(ok+|okk+|okay+|kk+|thanks?|thank\s*you|thx|tks|hmm+|achha|theek)$/i.test(lower);
 
         // ─── 8. Build dynamic intent hint ────────────────────────
         let intentHint = "";
 
-        if (isGreeting) {
-            intentHint = `INTERNAL_HINT: User sent a greeting. Reply with the GREETING template (full text + question). Do NOT reply with only an emoji.`;
-        } else if (isAck) {
-            intentHint = `INTERNAL_HINT: User sent acknowledgment. Reply: "You're welcome 😊 Aur kis subject me help chahiye?"`;
-        } else if (multiVersionSubject) {
+        if (multiVersionSubject) {
             intentHint = `INTERNAL_HINT: User asked for "${multiVersionSubject}" but did NOT specify which version (Complete/Part 1/Part 2/Part 3).
 Use the NEET_MDS_CLARIFICATION template. Ask which version they need. Do NOT pick one yourself.
 Do NOT share any link yet.`;
@@ -247,7 +266,7 @@ Do NOT share any link yet.`;
             intentHint = `INTERNAL_HINT: User used a pronoun reference (like "the notes", "send it", "wo bhejo").
 Look at the conversation history above to identify which subject they mean.
 If history shows a multi-version subject (NEET MDS) without specified version, use NEET_MDS_CLARIFICATION template.
-If the prior subject is clear, share that subject's link from the retrieved context.
+If the prior subject is clear, share that subject's link from the retrieved info.
 If unclear, ask: "Aap kis subject ki notes chahiye?"`;
         } else if (validation.status === "NOT_IN_CATALOG") {
             intentHint = `INTERNAL_HINT: User asked for "${validation.detectedTerm}" — NOT in our catalog.
@@ -265,12 +284,10 @@ ${linksInContext.length > 0
         }
 
         // ─── 9. Build messages ───────────────────────────────────
-        const finalContext = (isGreeting || isAck) ? "" : contextText;
-
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nRETRIEVED INFO:\n${finalContext || "(no info available)"}`
+                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nRETRIEVED INFO:\n${contextText || "(no info available)"}`
             },
             ...history,
             { role: "user" as const, content: messageText }
@@ -293,20 +310,10 @@ ${linksInContext.length > 0
         }
 
         // ─── 11. POST-PROCESSING ─────────────────────────────────
-        // (a) Strip markdown
         response = stripMarkdown(response);
-
-        // (b) NEW: Strip internal-leak phrases
         response = stripInternalLeaks(response);
 
-        // (c) Guard: emoji-only or too-short greeting
-        const onlyEmojiOrTooShort = /^[\s\p{Emoji}\p{Emoji_Presentation}]+$/u.test(response) || response.trim().length < 10;
-        if (onlyEmojiOrTooShort && isGreeting) {
-            response = "Hi 😊 Main Medi Study Go assistant hoon. Hum MBBS, BDS aur NEET MDS students ke liye visual study materials provide karte hain. Aapko kis subject me help chahiye?";
-            console.log(`🔧 Replaced emoji-only response with proper greeting`);
-        }
-
-        // (d) Guard: missing link auto-append (only for non-multi-version)
+        // Guard: missing link auto-append (only for non-multi-version)
         if (validation.status === "MATCHED" && !multiVersionSubject) {
             const ctxLinks = extractDriveLinks(contextText);
             const respLinks = extractDriveLinks(response);
@@ -316,46 +323,8 @@ ${linksInContext.length > 0
             }
         }
 
-        // ─── 12. Send ────────────────────────────────────────────
-        const sendResult = await sendWhatsAppMessage(fromNumber, response, auth_token, origin);
-
-        if (!sendResult.success) {
-            await supabase
-                .from("whatsapp_messages")
-                .update({ auto_respond_sent: false, response_sent_at: new Date().toISOString() })
-                .eq("message_id", messageId);
-            return { success: false, response, sent: false, error: `Send failed: ${sendResult.error}` };
-        }
-
-        // ─── 13. Save AI response ────────────────────────────────
-        const responseMessageId = `auto_${messageId}_${Date.now()}`;
-        await supabase.from("whatsapp_messages").insert([{
-            message_id: responseMessageId,
-            channel: "whatsapp",
-            from_number: toNumber,
-            to_number: fromNumber,
-            received_at: new Date().toISOString(),
-            content_type: "text",
-            content_text: response,
-            sender_name: "AI Assistant",
-            event_type: "MtMessage",
-            is_in_24_window: true,
-            is_responded: false,
-            raw_payload: {
-                messageId: responseMessageId,
-                isAutoResponse: true,
-                from: toNumber,
-                to: fromNumber,
-            },
-        }]);
-
-        await supabase
-            .from("whatsapp_messages")
-            .update({ auto_respond_sent: true, response_sent_at: new Date().toISOString() })
-            .eq("message_id", messageId);
-
-        console.log(`✅ Sent to ${fromNumber}`);
-        return { success: true, response, sent: true };
+        // ─── 12. Send + Store ────────────────────────────────────
+        return await sendAndStore(fromNumber, toNumber, response, messageId, auth_token, origin);
 
     } catch (error) {
         console.error("❌ Auto-response error:", error);
@@ -364,4 +333,55 @@ ${linksInContext.length > 0
             error: error instanceof Error ? error.message : "Unknown error",
         };
     }
+}
+
+// ────────────────────────────────────────────────────────────────
+// 🔒 SEND + STORE HELPER (used by both shortcut and LLM paths)
+// ────────────────────────────────────────────────────────────────
+async function sendAndStore(
+    fromNumber: string,
+    toNumber: string,
+    response: string,
+    messageId: string,
+    auth_token: string,
+    origin: string
+): Promise<AutoResponseResult> {
+    const sendResult = await sendWhatsAppMessage(fromNumber, response, auth_token, origin);
+
+    if (!sendResult.success) {
+        await supabase
+            .from("whatsapp_messages")
+            .update({ auto_respond_sent: false, response_sent_at: new Date().toISOString() })
+            .eq("message_id", messageId);
+        return { success: false, response, sent: false, error: `Send failed: ${sendResult.error}` };
+    }
+
+    const responseMessageId = `auto_${messageId}_${Date.now()}`;
+    await supabase.from("whatsapp_messages").insert([{
+        message_id: responseMessageId,
+        channel: "whatsapp",
+        from_number: toNumber,
+        to_number: fromNumber,
+        received_at: new Date().toISOString(),
+        content_type: "text",
+        content_text: response,
+        sender_name: "AI Assistant",
+        event_type: "MtMessage",
+        is_in_24_window: true,
+        is_responded: false,
+        raw_payload: {
+            messageId: responseMessageId,
+            isAutoResponse: true,
+            from: toNumber,
+            to: fromNumber,
+        },
+    }]);
+
+    await supabase
+        .from("whatsapp_messages")
+        .update({ auto_respond_sent: true, response_sent_at: new Date().toISOString() })
+        .eq("message_id", messageId);
+
+    console.log(`✅ Sent to ${fromNumber}`);
+    return { success: true, response, sent: true };
 }
