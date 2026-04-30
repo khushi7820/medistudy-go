@@ -105,8 +105,8 @@ export async function generateAutoResponse(
         const contextText = matches.map((m) => m.chunk).join("\n\n");
 
         // 3.5 Detect Small Talk / Greetings
-        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo)$/i.test(messageText.trim());
-        
+        const isGreeting = /^(hi|hello|hey|heyy|greeting|greetings|hola|namaste|hlo|hii|helo|hy|hyy|)$/i.test(messageText.trim());
+
         // If it's just a greeting, we can clear the context to avoid "Biochemistry" forced answers
         const finalContext = isGreeting ? "" : contextText;
 
