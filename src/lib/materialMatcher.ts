@@ -14,11 +14,9 @@
  */
 const SUBJECT_CATALOG = [
     // ─── BDS FIRST YEAR ─────────────────────────────────────
-    { canonical: "PHARMACOLOGY", aliases: ["pharmacology", "pharmacy student", "pharma notes", "pharmac", "pharm"] },
-
+    { canonical: "PHARMACOLOGY", aliases: ["pharmacology", "pharmacy", "pharmacy student", "pharma", "pharma notes", "pharmac", "pharm"] },
     { canonical: "Product profile for Neuro_com", aliases: ["neuro", "neuro material", "neurocom"] },
-    { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy", "neurology", "neurologist"] },
-
+    { canonical: "Product profile for (Neuroanatomy)", aliases: ["neuroanatomy", "neuro anatomy"] },
     { canonical: "MICRO", aliases: ["micro", "microbio", "microbiology"] },
     { canonical: "BIOCHEMISTRY", aliases: ["biochem", "bio chem", "biochemistry"] },
     { canonical: "PHYSIOLOGY", aliases: ["physiology", "physio notes", "body functions"] },
@@ -74,6 +72,7 @@ const NOT_IN_CATALOG = [
     "community medicine", "obg", "obstetrics",
     "general radiology", "diagnostic radiology",
     "oncology", "nephrology", "urology", "pulmonology", "endocrinology",
+    "neurology", "neurologist",
 ];
 
 /**
@@ -105,14 +104,11 @@ export function validateSubjectRequest(messageText: string): ValidationResult {
     const text = messageText.toLowerCase().trim();
 
     // Detect if user is asking for material at all
+    // Always try subject detection first, even for "tell me about..." style questions
+    // because users may ask details without saying pdf/material/link.
     const isMaterialRequest =
         MATERIAL_KEYWORDS.some(kw => text.includes(kw)) ||
-        text.length < 25; // Short messages like "neurology" or "perio" alone
-
-    if (!isMaterialRequest) {
-        return { status: "GENERAL_QUERY" };
-    }
-
+        text.length < 80;
     // ✅ STEP 1: Check approved catalog FIRST
     // Sort by alias length DESC so "oral radiology" matches before "radiology"
     // and "neuroanatomy" matches before "neuro"
