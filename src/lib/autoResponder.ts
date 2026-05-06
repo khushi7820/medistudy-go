@@ -518,7 +518,21 @@ async function sendAndStore(
     const sendResult = await sendWhatsAppMessage(fromNumber, response, auth_token, origin);
 
     if (sendResult.success && pdfToSend) {
-        await sendWhatsAppDocument(fromNumber, pdfToSend, auth_token, origin);
+        try {
+            const docResult = await sendWhatsAppDocument(fromNumber, pdfToSend, auth_token, origin);
+            if (!docResult.success) {
+                console.error("PDF delivery failed, sending fallback link:", docResult.error);
+                await sendWhatsAppMessage(
+                    fromNumber,
+                    `Maaf kijiye, ye file attach karne mein thodi problem aa rahi hai. Aap yahan se direct download kar sakte hain: ${pdfToSend}`,
+                    auth_token,
+                    origin
+                );
+            }
+        } catch (err) {
+            console.error("Error in PDF delivery:", err);
+            await sendWhatsAppMessage(fromNumber, `Download Link: ${pdfToSend}`, auth_token, origin);
+        }
     }
     if (!sendResult.success) {
         await supabase
