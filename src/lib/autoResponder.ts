@@ -110,7 +110,8 @@ function stripMarkdown(text: string): string {
 }
 
 function extractDriveLinks(text: string): string[] {
-    const regex = /https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view(?:\?usp=[a-z_]+)?/gi;
+    // Matches common Google Drive file and folder patterns
+    const regex = /https:\/\/drive\.google\.com\/(?:file\/d\/|drive\/folders\/|open\?id=)([A-Za-z0-9_-]+)[^\s]*/gi;
     return text.match(regex) || [];
 }
 
@@ -414,10 +415,10 @@ ${linksInContext.length > 0
 
         // ─── 9. Build messages ───────────────────────────────────
         const finalInstructions = `CRITICAL RULES:
-1. If there is a Google Drive link (drive.google.com) in your system instructions or retrieved info for the requested subject, YOU MUST INCLUDE IT anywhere in your response. The system will extract it and send it as a PDF.
-2. DO NOT use rigid templates like '📚 Study Material Found' or 'Subject: ... 👉'.
-3. Instead, give a natural 1-2 line brief explanation about the subject the user asked for.
-4. No extra conversational filler or questions at the end.`;
+1. If there is a Google Drive link (drive.google.com) in your system instructions or retrieved info, YOU MUST INCLUDE IT. Our system will extract it and send the PDF.
+2. DO NOT mention prices, discounts, or coupons (like NEW10) unless explicitly asked. 
+3. Give a natural 1-2 line brief explanation about the requested subject. 
+4. NO conversational filler, NO rigid templates, NO extra links in the final text.`;
 
         const messages = [
             {
@@ -452,14 +453,14 @@ ${linksInContext.length > 0
         let pdfToSend: string | null = null;
 
         if (!multiVersionSubject) {
-            // First check if the LLM outputted a link anyway (e.g. from system prompt)
-            const responseLinks = extractDriveLinks(response);
+            // Priority: Use raw links from context (database) first to avoid LLM character hallucinations
             const ctxLinks = extractDriveLinks(contextText);
+            const responseLinks = extractDriveLinks(response);
 
-            if (responseLinks.length > 0) {
-                pdfToSend = responseLinks[0];
-            } else if (validation.status === "MATCHED" && ctxLinks.length > 0) {
+            if (ctxLinks.length > 0) {
                 pdfToSend = ctxLinks[0];
+            } else if (responseLinks.length > 0) {
+                pdfToSend = responseLinks[0];
             }
 
             if (pdfToSend) {
