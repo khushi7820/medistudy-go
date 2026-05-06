@@ -28,6 +28,13 @@ function convertGoogleDriveToDirectDownload(link: string): string {
 }
 
 /**
+ * Check if a link is a direct Google Drive file link (not a folder)
+ */
+export function isGoogleDriveFile(link: string): boolean {
+    return link.includes('/file/d/') || link.includes('drive.google.com/uc');
+}
+
+/**
  * Send a text message via WhatsApp using 11za.in API
  */
 export async function sendWhatsAppMessage(

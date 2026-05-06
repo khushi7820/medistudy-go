@@ -11,7 +11,7 @@ import { supabase } from "./supabaseClient";
 import { embedText } from "./embeddings";
 import { retrieveRelevantChunksFromFiles } from "./retrieval";
 import { getFilesForPhoneNumber } from "./phoneMapping";
-import { sendWhatsAppMessage, sendWhatsAppDocument, formatMaterialLinkMessage } from "./whatsappSender";
+import { sendWhatsAppMessage, sendWhatsAppDocument, formatMaterialLinkMessage, isGoogleDriveFile } from "./whatsappSender";
 import { validateSubjectRequest } from "./materialMatcher";
 import Groq from "groq-sdk";
 
@@ -463,19 +463,27 @@ ${linksInContext.length > 0
             }
 
             if (pdfToSend) {
-                // Strip ALL Google Drive links from the response text
-                response = response.replace(/https:\/\/drive\.google\.com\/[^\s]+/gi, '').trim();
-                
-                // Clean up any remaining text that looks like a raw template
-                response = response.replace(/📚\s*Study Material Found/gi, '').trim();
-                response = response.replace(/Subject:.*?👉/gi, '').trim();
-                response = response.replace(/Aur kis subject me help chahiye\?/gi, '').trim();
+                const isFile = isGoogleDriveFile(pdfToSend);
 
-                // If response is too empty after stripping, provide a simple fallback
-                if (response.length < 5) {
-                    response = "Yeh lijiye aapka requested material! 😊";
+                if (isFile) {
+                    // Strip ALL Google Drive links from the response text
+                    response = response.replace(/https:\/\/drive\.google\.com\/[^\s]+/gi, '').trim();
+                    
+                    // Clean up any remaining text that looks like a raw template
+                    response = response.replace(/📚\s*Study Material Found/gi, '').trim();
+                    response = response.replace(/Subject:.*?👉/gi, '').trim();
+                    response = response.replace(/Aur kis subject me help chahiye\?/gi, '').trim();
+
+                    // If response is too empty after stripping, provide a simple fallback
+                    if (response.length < 5) {
+                        response = "Yeh lijiye aapka requested material! 😊";
+                    }
+                    console.log(`📄 PDF attachment prepared: ${pdfToSend}`);
+                } else {
+                    // It's a folder or unknown link - DO NOT strip it, DO NOT send as document
+                    console.log(`📂 Link is a folder/other, sending as text link instead: ${pdfToSend}`);
+                    pdfToSend = null; 
                 }
-                console.log(`📄 PDF attachment prepared: ${pdfToSend}`);
             }
         }
 
