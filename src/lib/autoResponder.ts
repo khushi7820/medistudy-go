@@ -11,7 +11,7 @@ import { supabase } from "./supabaseClient";
 import { embedText } from "./embeddings";
 import { retrieveRelevantChunksFromFiles } from "./retrieval";
 import { getFilesForPhoneNumber } from "./phoneMapping";
-import { sendWhatsAppMessage } from "./whatsappSender";
+import { sendWhatsAppMessage, sendWhatsAppDocument, formatMaterialLinkMessage } from "./whatsappSender";
 import { validateSubjectRequest } from "./materialMatcher";
 import Groq from "groq-sdk";
 
@@ -443,17 +443,22 @@ ${linksInContext.length > 0
         response = stripInternalLeaks(response);
 
         // Guard: missing link auto-append (only for non-multi-version)
+        let pdfToSend: string | null = null;
+
+        // Guard: if material matched and PDF link exists in context, send PDF instead of ugly URL
         if (validation.status === "MATCHED" && !multiVersionSubject) {
             const ctxLinks = extractDriveLinks(contextText);
-            const respLinks = extractDriveLinks(response);
-            if (ctxLinks.length > 0 && respLinks.length === 0) {
-                response += `\n\n👉 ${ctxLinks[0]}`;
-                console.log(`🔧 Auto-appended missing link`);
+
+            if (ctxLinks.length > 0) {
+                pdfToSend = ctxLinks[0];
+                response = formatMaterialLinkMessage(validation.matchedSubject);
+                console.log(`📄 PDF attachment prepared: ${pdfToSend}`);
             }
         }
 
         // ─── 12. Send + Store ────────────────────────────────────
-        return await sendAndStore(fromNumber, toNumber, response, messageId, auth_token, origin);
+
+        return await sendAndStore(fromNumber, toNumber, response, messageId, auth_token, origin, pdfToSend);
 
     } catch (error) {
         console.error("❌ Auto-response error:", error);
@@ -467,16 +472,22 @@ ${linksInContext.length > 0
 // ────────────────────────────────────────────────────────────────
 // 🔒 SEND + STORE HELPER (used by both shortcut and LLM paths)
 // ────────────────────────────────────────────────────────────────
+
 async function sendAndStore(
     fromNumber: string,
     toNumber: string,
     response: string,
     messageId: string,
     auth_token: string,
-    origin: string
+    origin: string,
+    pdfToSend?: string | null
 ): Promise<AutoResponseResult> {
+
     const sendResult = await sendWhatsAppMessage(fromNumber, response, auth_token, origin);
 
+    if (sendResult.success && pdfToSend) {
+        await sendWhatsAppDocument(fromNumber, pdfToSend, auth_token, origin);
+    }
     if (!sendResult.success) {
         await supabase
             .from("whatsapp_messages")

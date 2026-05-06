@@ -1,3 +1,4 @@
+```typescript
 /**
  * WhatsApp Message Sender using 11za.in API
  */
@@ -11,10 +12,19 @@ export type SendMessageResult = {
 };
 
 /**
- * Format a WhatsApp message for a material link
+ * Format a WhatsApp message before sending PDF
  */
-export function formatMaterialLinkMessage(subject: string, link: string): string {
-    return `📚 *Requested Study Material*\n\nSubject: ${subject}\n\nDownload Link:\n${link}\n\nNeed another subject? 😊`;
+export function formatMaterialLinkMessage(subject: string): string {
+    return `📚 * Study Material Found *\n\nSubject: ${ subject } \n\nMain aapko requested PDF document bhej raha hoon 👇`;
+}
+
+/**
+ * Convert Google Drive view link to direct downloadable link
+ */
+function convertGoogleDriveToDirectDownload(link: string): string {
+    const match = link.match(/\/d\/(.*?)\//);
+    if (!match) return link;
+    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
 }
 
 /**
@@ -39,12 +49,10 @@ export async function sendWhatsAppMessage(
             sendto: phoneNumber,
             authToken: authToken,
             originWebsite: originWebsite.trim(),
-            originWebsites: originWebsite.trim(), // Adding plural alias as requested by error message
+            originWebsites: originWebsite.trim(),
             contentType: "text",
             text: message,
         };
-
-        console.log(`Sending WhatsApp message to ${phoneNumber} with origin: ${originWebsite.trim()}`);
 
         console.log(`Sending WhatsApp message to ${phoneNumber}...`);
 
@@ -67,8 +75,6 @@ export async function sendWhatsAppMessage(
             };
         }
 
-        console.log("WhatsApp message sent successfully:", data);
-
         return {
             success: true,
             response: data,
@@ -83,8 +89,67 @@ export async function sendWhatsAppMessage(
 }
 
 /**
+ * Send a PDF document via WhatsApp using 11za.in API
+ */
+export async function sendWhatsAppDocument(
+    phoneNumber: string,
+    documentUrl: string,
+    authToken: string,
+    originWebsite: string
+): Promise<SendMessageResult> {
+    try {
+        if (!authToken || !originWebsite) {
+            return {
+                success: false,
+                error: "WhatsApp API credentials not provided",
+            };
+        }
+
+        const payload = {
+            sendto: phoneNumber,
+            authToken: authToken,
+            originWebsite: originWebsite.trim(),
+            originWebsites: originWebsite.trim(),
+            contentType: "document",
+            myfile: convertGoogleDriveToDirectDownload(documentUrl),
+        };
+
+        console.log(`Sending WhatsApp PDF document to ${phoneNumber}...`);
+
+        const response = await fetch(WHATSAPP_API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error("WhatsApp Document API error:", data);
+            return {
+                success: false,
+                error: `WhatsApp API returned ${response.status}`,
+                response: data,
+            };
+        }
+
+        return {
+            success: true,
+            response: data,
+        };
+    } catch (error) {
+        console.error("Error sending WhatsApp document:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+        };
+    }
+}
+
+/**
  * Send a template message via WhatsApp using 11za.in API
- * (For future use if you need template messages)
  */
 export async function sendWhatsAppTemplate(
     phoneNumber: string,
@@ -103,7 +168,6 @@ export async function sendWhatsAppTemplate(
             };
         }
 
-        // Normalize originWebsite (remove protocol and trailing slash)
         const payload = {
             sendto: phoneNumber,
             authToken: authToken,
@@ -144,3 +208,4 @@ export async function sendWhatsAppTemplate(
         };
     }
 }
+```
