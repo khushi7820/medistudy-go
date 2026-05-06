@@ -413,10 +413,16 @@ ${linksInContext.length > 0
         }
 
         // ─── 9. Build messages ───────────────────────────────────
+        const finalInstructions = `CRITICAL RULES:
+1. If there is a Google Drive link (drive.google.com) in your system instructions or retrieved info for the requested subject, YOU MUST INCLUDE IT anywhere in your response. The system will extract it and send it as a PDF.
+2. DO NOT use rigid templates like '📚 Study Material Found' or 'Subject: ... 👉'.
+3. Instead, give a natural 1-2 line brief explanation about the subject the user asked for.
+4. No extra conversational filler or questions at the end.`;
+
         const messages = [
             {
                 role: "system" as const,
-                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nRETRIEVED INFO:\n${contextText || "(no info available)"}`
+                content: `${systemPrompt}\n\n────────\n${intentHint}\n────────\nRETRIEVED INFO:\n${contextText || "(no info available)"}\n\n${finalInstructions}`
             },
             ...history,
             { role: "user" as const, content: messageText }
@@ -445,16 +451,29 @@ ${linksInContext.length > 0
         // Guard: missing link auto-append (only for non-multi-version)
         let pdfToSend: string | null = null;
 
-        // Guard: if material matched and PDF link exists in context, send PDF instead of ugly URL
-        if (validation.status === "MATCHED" && !multiVersionSubject) {
+        if (!multiVersionSubject) {
+            // First check if the LLM outputted a link anyway (e.g. from system prompt)
+            const responseLinks = extractDriveLinks(response);
             const ctxLinks = extractDriveLinks(contextText);
 
-            if (ctxLinks.length > 0) {
+            if (responseLinks.length > 0) {
+                pdfToSend = responseLinks[0];
+            } else if (validation.status === "MATCHED" && ctxLinks.length > 0) {
                 pdfToSend = ctxLinks[0];
-                // Strip the google drive link from LLM response just in case it ignored the instruction
+            }
+
+            if (pdfToSend) {
+                // Strip ALL Google Drive links from the response text
                 response = response.replace(/https:\/\/drive\.google\.com\/[^\s]+/gi, '').trim();
-                if (!response) {
-                    response = formatMaterialLinkMessage(validation.matchedSubject);
+                
+                // Clean up any remaining text that looks like a raw template
+                response = response.replace(/📚\s*Study Material Found/gi, '').trim();
+                response = response.replace(/Subject:.*?👉/gi, '').trim();
+                response = response.replace(/Aur kis subject me help chahiye\?/gi, '').trim();
+
+                // If response is too empty after stripping, provide a simple fallback
+                if (response.length < 5) {
+                    response = "Yeh lijiye aapka requested material! 😊";
                 }
                 console.log(`📄 PDF attachment prepared: ${pdfToSend}`);
             }
