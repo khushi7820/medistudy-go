@@ -1,4 +1,4 @@
-```typescript
+
 /**
  * WhatsApp Message Sender using 11za.in API
  */
@@ -15,7 +15,7 @@ export type SendMessageResult = {
  * Format a WhatsApp message before sending PDF
  */
 export function formatMaterialLinkMessage(subject: string): string {
-    return `📚 * Study Material Found *\n\nSubject: ${ subject } \n\nMain aapko requested PDF document bhej raha hoon 👇`;
+    return `Study Material Found\n\nSubject: ${subject}\n\nMain aapko requested PDF document bhej raha hoon`;
 }
 
 /**
@@ -208,4 +208,4 @@ export async function sendWhatsAppTemplate(
         };
     }
 }
-```
+
