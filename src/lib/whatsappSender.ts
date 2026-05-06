@@ -56,6 +56,7 @@ export async function sendWhatsAppMessage(
 
         console.log(`Sending WhatsApp message to ${phoneNumber}...`);
 
+
         const response = await fetch(WHATSAPP_API_URL, {
             method: "POST",
             headers: {
@@ -115,6 +116,7 @@ export async function sendWhatsAppDocument(
         };
 
         console.log(`Sending WhatsApp PDF document to ${phoneNumber}...`);
+        console.log("Document URL being sent:", convertGoogleDriveToDirectDownload(documentUrl));
 
         const response = await fetch(WHATSAPP_API_URL, {
             method: "POST",
@@ -134,7 +136,7 @@ export async function sendWhatsAppDocument(
                 response: data,
             };
         }
-
+        console.log("11za document response:", data);
         return {
             success: true,
             response: data,

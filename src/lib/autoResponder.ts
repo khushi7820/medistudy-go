@@ -404,7 +404,7 @@ DO NOT provide any link. DO NOT substitute. Use NOT_IN_CATALOG template.`;
             const linksInContext = extractDriveLinks(contextText);
             intentHint = `INTERNAL_HINT: Subject "${validation.matchedSubject}" matched.
 ${linksInContext.length > 0
-                    ? `Drive link in context: ${linksInContext[0]}\nInclude this FULL URL using MATERIAL_FOUND template.`
+                    ? `A document was found in the context. DO NOT include any links or URLs in your reply. Give a very short 1-2 line direct reply related to the user's question about this subject. No extra conversational filler, no bakwass.`
                     : `No link available. Reply: "Sorry, [Subject] ka link abhi catalog me nahi hai"`}`;
         } else if (validation.status === "NO_SUBJECT_DETECTED") {
             intentHint = `INTERNAL_HINT: Material request without specific subject. Ask which subject they need.`;
@@ -451,7 +451,11 @@ ${linksInContext.length > 0
 
             if (ctxLinks.length > 0) {
                 pdfToSend = ctxLinks[0];
-                response = formatMaterialLinkMessage(validation.matchedSubject);
+                // Strip the google drive link from LLM response just in case it ignored the instruction
+                response = response.replace(/https:\/\/drive\.google\.com\/[^\s]+/gi, '').trim();
+                if (!response) {
+                    response = formatMaterialLinkMessage(validation.matchedSubject);
+                }
                 console.log(`📄 PDF attachment prepared: ${pdfToSend}`);
             }
         }
